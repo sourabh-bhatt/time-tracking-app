@@ -75,7 +75,8 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
   });
 
   // Calculate stats
-  const totalSeconds = logs.length * 60; // Assuming 1 min interval
+  // Total Seconds = logs * 10 minutes * 60 seconds = logs * 600
+  const totalSeconds = logs.length * 600;
   const totalHours = Math.floor(totalSeconds / 3600);
   const totalMinutes = Math.floor((totalSeconds % 3600) / 60);
 
@@ -190,6 +191,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                           {new Date(memoLogs[0].timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                           {' - '}
                           {new Date(memoLogs[memoLogs.length - 1].timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                          {/* Each log is 10 mins */}
                           <span className="text-gray-400 font-normal ml-2">({memoLogs.length * 10} mins)</span>
                         </h3>
                       </div>
@@ -200,7 +202,12 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                     {/* Grid */}
                     <div className="p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                       {memoLogs.map((log) => {
-                        const activityScore = Math.min((log.activity.keyPresses + log.activity.mouseClicks + log.activity.mouseMoves) / 10, 10);
+                        // Max score 10. Normal usage ~1 activity/sec => 600/10mins. 
+                        // So divide by 60 to get a score out of 10 for normal intense activity? 
+                        // Or just simplistic divide by 10 like before? Before it was 10s => /10 was 1.0 logic.
+                        // Now 600s. If I do /10 it will be huge. 
+                        // Let's divide by 60.
+                        const activityScore = Math.min((log.activity.keyPresses + log.activity.mouseClicks + log.activity.mouseMoves) / 60, 10);
 
                         return (
                           <div key={log._id} className="group relative">
@@ -221,8 +228,16 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                                 <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-xs p-2 text-center pointer-events-none">
                                   <div>Keys: {log.activity.keyPresses}</div>
                                   <div>Clicks: {log.activity.mouseClicks}</div>
-                                  <div className="mt-1 text-[10px] text-gray-300">
-                                    {new Date(log.timestamp).toLocaleTimeString([], { second: '2-digit', minute: '2-digit' })}
+                                  <div className="mt-1 text-[10px] text-gray-300 flex flex-col gap-1">
+                                    <div>
+                                      EST: {new Date(log.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' })}
+                                    </div>
+                                    <div>
+                                      IST: {new Date(log.timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' })}
+                                    </div>
+                                    <div>
+                                      NPT: {new Date(log.timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kathmandu', hour: 'numeric', minute: '2-digit' })}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
