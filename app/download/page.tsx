@@ -23,7 +23,7 @@ export default function DownloadPage() {
                 <div className="space-y-4">
                     {/* Windows Download */}
                     <a
-                        href="https://drive.google.com/file/d/14l36Crud8IGZRommVz0PLnIuRRAjIut8/view?usp=sharing"
+                        href="https://drive.google.com/file/d/17r0wwNS44cD-c1YvJt1ifcGI6Doj1iEy/view?usp=sharing"
                         download
                         className="block w-full bg-[#2a2a2a] hover:bg-[#333] border border-[#333] hover:border-[#14a800] text-white font-medium py-4 px-6 rounded-lg transition-all flex items-center justify-between group"
                     >

@@ -29,9 +29,10 @@ async function getLogs(userId: string, date: Date): Promise<LogEntry[]> {
   const endOfDay = new Date(date);
   endOfDay.setHours(23, 59, 59, 999);
 
-  // Query generic logs collection
+  // Query user-specific collection
+  const collectionName = `logs_${userId.toLowerCase()}`;
   const logs = await db
-    .collection("logs")
+    .collection(collectionName)
     .find({
       userId: userId,
       timestamp: {
@@ -59,6 +60,32 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
   const selectedDate = new Date(selectedDateStr);
 
   const logs = await getLogs(selectedUser, selectedDate);
+
+  // Helper to fetch weekly logs
+  const getWeeklyLogs = async (userId: string, date: Date) => {
+    const client = await clientPromise;
+    const db = client.db("employee_monitor");
+    const collectionName = `logs_${userId.toLowerCase()}`;
+
+    // Start of week (Monday)
+    const weekStart = new Date(date);
+    const day = weekStart.getDay();
+    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+    weekStart.setDate(diff);
+    weekStart.setHours(0, 0, 0, 0);
+
+    const count = await db.collection(collectionName).countDocuments({
+      userId: userId,
+      timestamp: { $gte: weekStart }
+    });
+
+    return count;
+  };
+
+  const weeklyCount = await getWeeklyLogs(selectedUser, selectedDate);
+  const weeklySeconds = weeklyCount * 600;
+  const weeklyHours = Math.floor(weeklySeconds / 3600);
+  const weeklyMinutes = Math.floor((weeklySeconds % 3600) / 60);
 
   // Group logs by hour and memo
   // Structure: { [hour]: { [memo]: LogEntry[] } }
@@ -145,11 +172,24 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
           </div>
 
           <div className="flex items-center gap-8">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold text-white">Total: {totalHours}:{totalMinutes.toString().padStart(2, '0')} hrs</span>
-              <span className="text-gray-500 cursor-pointer">↻</span>
+            <div className="flex items-center gap-6">
+              <div className="flex flex-col items-end">
+                <span className="text-2xl font-bold text-white transition-all hover:text-[#14a800]">
+                  {totalHours}:{totalMinutes.toString().padStart(2, '0')} hrs
+                </span>
+                <span className="text-xs text-gray-400">Today</span>
+              </div>
+
+              <div className="h-8 w-[1px] bg-[#333]"></div>
+
+              <div className="flex flex-col items-end">
+                <span className="text-xl font-bold text-white transition-all hover:text-[#14a800]">
+                  {weeklyHours}:{weeklyMinutes.toString().padStart(2, '0')} <span className="text-sm font-normal text-gray-500">of 40 hrs</span>
+                </span>
+                <span className="text-xs text-gray-400">This Week</span>
+              </div>
             </div>
-            <div className="flex gap-4 text-sm">
+            <div className="flex gap-4 text-sm ml-4 border-l border-[#333] pl-4">
               <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#14a800]"></span> Tracked</div>
               <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#00acc1]"></span> Manual</div>
               <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#e53935]"></span> Overtime</div>

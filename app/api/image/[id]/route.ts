@@ -16,10 +16,16 @@ export async function GET(
         const client = await clientPromise;
         const db = client.db("employee_monitor");
 
-        const log = await db.collection("logs").findOne(
-            { _id: new ObjectId(id) },
-            { projection: { image: 1 } }
-        );
+        const collections = ["logs_sourabh", "logs_prayash"];
+        let log = null;
+
+        for (const colName of collections) {
+            log = await db.collection(colName).findOne(
+                { _id: new ObjectId(id) },
+                { projection: { image: 1 } }
+            );
+            if (log) break;
+        }
 
         if (!log || !log.image) {
             return new NextResponse("Image not found", { status: 404 });
