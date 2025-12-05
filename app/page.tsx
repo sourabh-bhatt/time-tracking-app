@@ -29,11 +29,9 @@ async function getLogs(userId: string, date: Date): Promise<LogEntry[]> {
   const endOfDay = new Date(date);
   endOfDay.setHours(23, 59, 59, 999);
 
-  // Use separate collection for each user
-  const collectionName = `logs_${userId.toLowerCase()}`;
-
+  // Query generic logs collection
   const logs = await db
-    .collection(collectionName)
+    .collection("logs")
     .find({
       userId: userId,
       timestamp: {
