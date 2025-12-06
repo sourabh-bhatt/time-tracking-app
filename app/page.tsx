@@ -90,12 +90,18 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
   const weeklyHours = Math.floor(weeklySeconds / 3600);
   const weeklyMinutes = Math.floor((weeklySeconds % 3600) / 60);
 
+  // Helper to get IST Hour
+  const getISTHour = (date: Date) => {
+    const d = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    return d.getHours();
+  };
+
   // Group logs by hour and memo
   // Structure: { [hour]: { [memo]: LogEntry[] } }
   const logsByHourAndMemo: { [key: number]: { [key: string]: LogEntry[] } } = {};
 
   logs.forEach(log => {
-    const hour = new Date(log.timestamp).getHours();
+    const hour = getISTHour(new Date(log.timestamp));
     const memo = log.memo || 'No Memo';
 
     if (!logsByHourAndMemo[hour]) logsByHourAndMemo[hour] = {};
@@ -111,8 +117,9 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
   const totalHours = Math.floor(totalSeconds / 3600);
   const totalMinutes = Math.floor((totalSeconds % 3600) / 60);
 
-  // Calculate total tracked time per hour for timeline
-  const trackedHours = new Set(logs.map(l => new Date(l.timestamp).getHours()));
+  // Calculate total tracked time per hour for timeline (in IST)
+  const loggedHours = logs.map(l => getISTHour(new Date(l.timestamp)));
+  const trackedHours = new Set(loggedHours);
 
   const getPrevDate = () => {
     const d = new Date(selectedDate);
