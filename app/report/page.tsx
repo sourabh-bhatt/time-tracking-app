@@ -103,16 +103,16 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
 
     return (
         <div className="min-h-screen bg-[#121212] text-gray-300 font-sans">
-            <header className="bg-[#1e1e1e] border-b border-[#333] px-6 py-4 sticky top-0 z-20">
-                <div className="max-w-7xl mx-auto flex justify-between items-center">
-                    <div className="flex items-center gap-6">
+            <header className="bg-[#1e1e1e] border-b border-[#333] px-4 md:px-6 py-4 sticky top-0 z-20">
+                <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 md:gap-0">
+                    <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-start">
                         <Link href="/" className="flex items-center gap-2 group">
                             <span className="text-gray-400 group-hover:text-white">←</span>
                             <h1 className="text-2xl font-bold text-white">Back to Work Diary</h1>
                         </Link>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 w-full md:w-auto justify-end">
                         <div className="text-sm text-gray-400">
                             Signed in as <span className="text-white font-medium">admin</span>
                         </div>
@@ -120,10 +120,10 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto px-6 py-8">
+            <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
                 {/* Header & Nav */}
-                <div className="flex justify-between items-center mb-8">
-                    <div>
+                <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 md:gap-0">
+                    <div className="text-center md:text-left">
                         <h2 className="text-3xl font-bold text-white mb-2">Weekly Report</h2>
                         <p className="text-gray-400">
                             {startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -132,7 +132,7 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-full md:w-auto justify-center">
                         <Link href={`/report?date=${getPrevWeek()}`} className="px-4 py-2 bg-[#1e1e1e] border border-[#333] rounded hover:border-gray-500 transition-colors">
                             Previous Week
                         </Link>
@@ -143,31 +143,31 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                 </div>
 
                 {/* Table */}
-                <div className="bg-[#1e1e1e] border border-[#333] rounded-xl overflow-hidden">
-                    <table className="w-full text-left">
+                <div className="bg-[#1e1e1e] border border-[#333] rounded-xl overflow-hidden overflow-x-auto">
+                    <table className="w-full text-left min-w-[600px]">
                         <thead className="bg-[#2a2a2a] border-b border-[#333]">
                             <tr>
-                                <th className="px-6 py-4 text-sm font-medium text-gray-400">Date</th>
-                                <th className="px-6 py-4 text-sm font-medium text-gray-400">Day</th>
-                                <th className="px-6 py-4 text-sm font-medium text-[#14a800]">Sourabh</th>
-                                <th className="px-6 py-4 text-sm font-medium text-[#00acc1]">Prayash</th>
-                                <th className="px-6 py-4 text-sm font-medium text-white text-right">Daily Total</th>
+                                <th className="px-6 py-4 text-sm font-medium text-gray-400 whitespace-nowrap">Date</th>
+                                <th className="px-6 py-4 text-sm font-medium text-gray-400 whitespace-nowrap">Day</th>
+                                <th className="px-6 py-4 text-sm font-medium text-[#14a800] whitespace-nowrap">Sourabh</th>
+                                <th className="px-6 py-4 text-sm font-medium text-[#00acc1] whitespace-nowrap">Prayash</th>
+                                <th className="px-6 py-4 text-sm font-medium text-white text-right whitespace-nowrap">Daily Total</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#333]">
                             {stats.map((day) => (
                                 <tr key={day.date} className="hover:bg-[#252525] transition-colors">
-                                    <td className="px-6 py-4 text-white font-medium">
+                                    <td className="px-6 py-4 text-white font-medium whitespace-nowrap">
                                         {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                     </td>
-                                    <td className="px-6 py-4 text-gray-400">{day.dayName}</td>
-                                    <td className="px-6 py-4 font-mono text-lg text-white">
+                                    <td className="px-6 py-4 text-gray-400 whitespace-nowrap">{day.dayName}</td>
+                                    <td className="px-6 py-4 font-mono text-lg text-white whitespace-nowrap">
                                         {formatDuration(day.sourabh)}
                                     </td>
-                                    <td className="px-6 py-4 font-mono text-lg text-white">
+                                    <td className="px-6 py-4 font-mono text-lg text-white whitespace-nowrap">
                                         {formatDuration(day.prayash)}
                                     </td>
-                                    <td className="px-6 py-4 font-mono text-lg text-white text-right font-bold">
+                                    <td className="px-6 py-4 font-mono text-lg text-white text-right font-bold whitespace-nowrap">
                                         {formatDuration(day.sourabh + day.prayash)}
                                     </td>
                                 </tr>
@@ -175,18 +175,18 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                         </tbody>
                         <tfoot className="bg-[#2a2a2a] border-t border-[#333]">
                             <tr>
-                                <td colSpan={2} className="px-6 py-4 text-right font-bold text-gray-400 uppercase text-xs tracking-wider">
+                                <td colSpan={2} className="px-6 py-4 text-right font-bold text-gray-400 uppercase text-xs tracking-wider whitespace-nowrap">
                                     Weekly Totals
                                 </td>
-                                <td className="px-6 py-4 font-bold text-xl text-[#14a800]">
+                                <td className="px-6 py-4 font-bold text-xl text-[#14a800] whitespace-nowrap">
                                     {formatDuration(totalSourabh)}
                                     <span className="text-xs font-normal text-gray-500 block">of 40h</span>
                                 </td>
-                                <td className="px-6 py-4 font-bold text-xl text-[#00acc1]">
+                                <td className="px-6 py-4 font-bold text-xl text-[#00acc1] whitespace-nowrap">
                                     {formatDuration(totalPrayash)}
                                     <span className="text-xs font-normal text-gray-500 block">of 40h</span>
                                 </td>
-                                <td className="px-6 py-4 font-bold text-xl text-white text-right">
+                                <td className="px-6 py-4 font-bold text-xl text-white text-right whitespace-nowrap">
                                     {formatDuration(totalSourabh + totalPrayash)}
                                 </td>
                             </tr>

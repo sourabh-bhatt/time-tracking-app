@@ -136,18 +136,18 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
   return (
     <div className="min-h-screen bg-[#121212] text-gray-300 font-sans">
       {/* Header */}
-      <header className="bg-[#1e1e1e] border-b border-[#333] px-6 py-4 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-6">
+      <header className="bg-[#1e1e1e] border-b border-[#333] px-4 md:px-6 py-4 sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 md:gap-0">
+          <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6 w-full md:w-auto">
             <h1 className="text-2xl font-bold text-white">Work diary</h1>
 
             {/* User Selector */}
-            <div className="flex bg-[#2a2a2a] rounded-lg p-1">
+            <div className="flex bg-[#2a2a2a] rounded-lg p-1 w-full md:w-auto justify-center">
               {['sourabh', 'prayash'].map((user) => (
                 <Link
                   key={user}
                   href={`/?user=${user}&date=${selectedDateStr}`}
-                  className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${selectedUser === user
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors flex-1 md:flex-initial text-center ${selectedUser === user
                     ? 'bg-[#333] text-white shadow-sm'
                     : 'text-gray-400 hover:text-white'
                     }`}
@@ -158,24 +158,24 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 w-full md:w-auto justify-center md:justify-end">
             <Link
               href="/report"
-              className="text-gray-400 hover:text-white text-sm font-medium transition-colors"
+              className="text-gray-400 hover:text-white text-sm font-medium transition-colors whitespace-nowrap"
             >
               Weekly Reports
             </Link>
-            <button className="bg-[#14a800] hover:bg-[#108a00] text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+            <button className="bg-[#14a800] hover:bg-[#108a00] text-white px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap">
               Request Manual Time
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
         {/* Date Navigation & Stats */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-[#1e1e1e] p-4 rounded-xl border border-[#333]">
-          <div className="flex items-center gap-4 mb-4 md:mb-0">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-[#1e1e1e] p-4 rounded-xl border border-[#333] gap-6 md:gap-0">
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto justify-center">
             <div className="flex items-center bg-[#2a2a2a] rounded-md border border-[#333] px-3 py-2">
               <Link href={`/?user=${selectedUser}&date=${getPrevDate()}`} className="text-gray-400 hover:text-white px-2">‹</Link>
               <span className="text-white font-medium mx-2">
@@ -188,9 +188,9 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
             </Link>
           </div>
 
-          <div className="flex items-center gap-8">
+          <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8 w-full md:w-auto justify-center">
             <div className="flex items-center gap-6">
-              <div className="flex flex-col items-end">
+              <div className="flex flex-col items-center sm:items-end">
                 <span className="text-2xl font-bold text-white transition-all hover:text-[#14a800]">
                   {totalHours}:{totalMinutes.toString().padStart(2, '0')} hrs
                 </span>
@@ -199,14 +199,14 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
 
               <div className="h-8 w-[1px] bg-[#333]"></div>
 
-              <div className="flex flex-col items-end">
+              <div className="flex flex-col items-center sm:items-end">
                 <span className="text-xl font-bold text-white transition-all hover:text-[#14a800]">
                   {weeklyHours}:{weeklyMinutes.toString().padStart(2, '0')} <span className="text-sm font-normal text-gray-500">of 40 hrs</span>
                 </span>
                 <span className="text-xs text-gray-400">This Week</span>
               </div>
             </div>
-            <div className="flex gap-4 text-sm ml-4 border-l border-[#333] pl-4">
+            <div className="flex gap-4 text-sm sm:ml-4 sm:border-l border-[#333] pl-0 sm:pl-4 w-full sm:w-auto justify-center">
               <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#14a800]"></span> Tracked</div>
               <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#00acc1]"></span> Manual</div>
               <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#e53935]"></span> Overtime</div>
@@ -260,7 +260,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                     </div>
 
                     {/* Grid */}
-                    <div className="p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    <div className="p-4 md:p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                       {memoLogs.map((log) => {
                         // Max score 10. Normal usage ~1 activity/sec => 600/10mins. 
                         // So divide by 60 to get a score out of 10 for normal intense activity? 
