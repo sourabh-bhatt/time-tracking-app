@@ -3,9 +3,14 @@
   "version": "1.0.0",
   "description": "Employee monitoring app with screenshots and input tracking",
   "main": "main.js",
+  "private": true,
   "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start:next": "next start",
     "start": "electron .",
-    "build": "electron-builder"
+    "build:electron": "electron-builder",
+    "lint": "eslint"
   },
   "keywords": [],
   "author": "Beyond Billions",
@@ -14,12 +19,23 @@
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "mongodb": "^7.0.0",
+    "next": "16.0.7",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
     "screenshot-desktop": "^1.15.0",
     "uiohook-napi": "^1.5.4"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "electron": "^33.2.1",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.7",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   },
   "build": {
     "appId": "com.beyondbillions.tracker",
