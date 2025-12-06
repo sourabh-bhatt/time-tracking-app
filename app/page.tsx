@@ -16,6 +16,7 @@ interface LogEntry {
   timestamp: Date;
   activity: Activity;
   memo?: string;
+  type?: string;
 }
 
 // Fetch logs from DB
@@ -49,7 +50,8 @@ async function getLogs(userId: string, date: Date): Promise<LogEntry[]> {
     userId: log.userId,
     timestamp: log.timestamp,
     activity: log.activity,
-    memo: log.memo || ''
+    memo: log.memo || '',
+    type: log.type || 'auto' // Default legacy to auto
   }));
 }
 
@@ -76,7 +78,8 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
 
     const count = await db.collection(collectionName).countDocuments({
       userId: userId,
-      timestamp: { $gte: weekStart }
+      timestamp: { $gte: weekStart },
+      type: 'auto' // Only count auto logs for time
     });
 
     return count;
@@ -102,8 +105,9 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
   });
 
   // Calculate stats
-  // Total Seconds = logs * 10 minutes * 60 seconds = logs * 600
-  const totalSeconds = logs.length * 600;
+  // Filter out 'start'/'stop' logs (which have 0 duration credit)
+  const autoLogs = logs.filter(l => !l.type || l.type === 'auto');
+  const totalSeconds = autoLogs.length * 600;
   const totalHours = Math.floor(totalSeconds / 3600);
   const totalMinutes = Math.floor((totalSeconds % 3600) / 60);
 
@@ -205,6 +209,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
               return (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1">
                   <div className={`w-full h-3 ${isTracked ? 'bg-[#14a800]' : 'bg-[#2a2a2a]'} rounded-sm`}></div>
+                  <div className={`w-full h-3 ${isTracked ? 'bg-[#14a800]' : 'bg-[#2a2a2a]'} rounded-sm`}></div>
                   <span className="text-[10px] text-gray-500">{i === 0 ? '12 am' : i === 12 ? '12 pm' : i > 12 ? `${i - 12} pm` : `${i} am`}</span>
                 </div>
               );
@@ -228,9 +233,9 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-[#14a800]"></div>
                         <h3 className="font-medium text-white">
-                          {new Date(memoLogs[0].timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                          {new Date(memoLogs[0].timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' })}
                           {' - '}
-                          {new Date(memoLogs[memoLogs.length - 1].timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                          {new Date(memoLogs[memoLogs.length - 1].timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' })}
                           {/* Each log is 10 mins */}
                           <span className="text-gray-400 font-normal ml-2">({memoLogs.length * 10} mins)</span>
                         </h3>
@@ -290,7 +295,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                                 ))}
                               </div>
                               <div className="flex justify-between text-[10px] text-gray-500">
-                                <span>{new Date(log.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+                                <span>{new Date(log.timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' })}</span>
                               </div>
                             </div>
                           </div>
