@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Time Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+    <!-- Login View -->
+    <div id="login-container" class="container login-view">
+        <h2 style="margin-bottom: 40px;">Who is logging in?</h2>
+        <div class="user-select-buttons">
+            <button class="btn user-btn" onclick="login('sourabh')">
+                <i class="fas fa-user-circle" style="margin-right: 10px;"></i> Sourabh
+            </button>
+            <button class="btn user-btn" onclick="login('prayash')">
+                <i class="fas fa-user-circle" style="margin-right: 10px;"></i> Prayash
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Tracker View -->
+    <div id="main-container" class="container" style="display: none;">
+        <header>
+            <div class="brand-area">
+                <span style="color: #14a800; font-size: 1.2em; font-weight: bold; margin-right: 10px;">
+                    <i class="fas fa-arrow-left"></i>
+                </span>
+                <div style="display: inline-block; vertical-align: top;">
+                    <div class="project-name">My Projects</div>
+                    <div class="client-name">Time Tracker</div>
+                </div>
+            </div>
+            <div class="window-controls">
+                <!-- Mac-like controls or custom ones if frameless -->
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Timer & Toggle -->
+            <div class="timer-section">
+                <div>
+                    <div id="timer" class="timer-display">0 hrs 00 m</div>
+                    <div class="timer-label">Current Session</div>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="toggleBtn">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <!-- Stats Row -->
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div id="todayTotal" class="stat-value">0:00 hrs</div>
+                    <div class="stat-label">Today (<span id="todayDay">Fri</span>)</div>
+                </div>
+                <div class="stat-item" style="text-align: right;">
+                    <div class="stat-value">
+                        <span id="weekTotal">0:00</span> <span class="limit-text">of 40</span>
+                    </div>
+                    <div class="stat-label week-total" id="weekLabel">This week (40h Limit)</div>
+                </div>
+            </div>
+
+            <!-- Memo Input -->
+            <div class="memo-section">
+                <div class="memo-label">Memo</div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-pencil-alt" style="color: #aaa;"></i>
+                    <input type="text" id="memoInput" class="memo-input" placeholder="What are you working on?"
+                        value="Content Improvement Process">
+                </div>
+            </div>
+
+            <!-- Screenshot Preview -->
+            <div class="screenshot-preview-section">
+                <div class="preview-header">
+                    <span class="preview-label">Latest Screen Capture</span>
+                    <span id="lastCaptureTime" class="last-captured-time">No captures yet</span>
+                </div>
+                <div class="preview-image-container">
+                    <img id="screenshotPreview" src="" class="preview-image" style="display: none;">
+                    <div id="noPreviewMsg" class="no-preview">
+                        <i class="fas fa-image"
+                            style="font-size: 2em; display: block; margin: 0 auto 10px; width: fit-content;"></i>
+                        No screenshot captured
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-actions">
+                <a href="#" class="view-diary-link">View Work Diary</a>
+            </div>
+        </div>
+
+        <footer>
+            <div class="user-display">
+                <i class="fas fa-cog settings-icon"></i>
+                <span id="footerUserName">Sourabh Sourabh</span>
+            </div>
+            <i class="far fa-comment-alt chat-icon"></i>
+        </footer>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+
+</html>
