@@ -236,8 +236,10 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                           {new Date(memoLogs[0].timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' })}
                           {' - '}
                           {new Date(memoLogs[memoLogs.length - 1].timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' })}
-                          {/* Each log is 10 mins */}
-                          <span className="text-gray-400 font-normal ml-2">({memoLogs.length * 10} mins)</span>
+                          {/* Each log is 10 mins, but only count 'auto' logs */}
+                          <span className="text-gray-400 font-normal ml-2">
+                            ({memoLogs.filter(l => !l.type || l.type === 'auto').length * 10} mins)
+                          </span>
                         </h3>
                       </div>
                       <div className="text-white font-medium">{memo}</div>
