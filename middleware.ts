@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
     const path = request.nextUrl.pathname;
 
     // Define public paths that don't need authentication
-    const isPublicPath = path === '/login' || path.startsWith('/api/image'); // Allow login and image API (used by Electron apps theoretically? No, Electron uses direct DB. Allow public just in case or protect? Let's protect everything except login.)
+    const isPublicPath = path === '/login' || path.startsWith('/diary') || path.startsWith('/api/');
 
     // Actually, wait, Electron doesn't use this Admin API for anything other than maybe checking something? 
     // Electron connects to MongoDB directly.

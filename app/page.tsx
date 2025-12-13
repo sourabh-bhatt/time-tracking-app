@@ -117,6 +117,11 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
   const totalHours = Math.floor(totalSeconds / 3600);
   const totalMinutes = Math.floor((totalSeconds % 3600) / 60);
 
+  // Earnings
+  const hourlyRate = 5;
+  const totalEarnings = (totalSeconds / 3600) * hourlyRate;
+  const weeklyEarnings = (weeklySeconds / 3600) * hourlyRate;
+
   // Calculate total tracked time per hour for timeline (in IST)
   const loggedHours = logs.map(l => getISTHour(new Date(l.timestamp)));
   const trackedHours = new Set(loggedHours);
@@ -194,7 +199,8 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                 <span className="text-2xl font-bold text-white transition-all hover:text-[#14a800]">
                   {totalHours}:{totalMinutes.toString().padStart(2, '0')} hrs
                 </span>
-                <span className="text-xs text-gray-400">Today</span>
+                <span className="text-xs text-green-500 font-medium">${totalEarnings.toFixed(2)}</span>
+                <span className="text-[10px] text-gray-400">Today</span>
               </div>
 
               <div className="h-8 w-[1px] bg-[#333]"></div>
@@ -203,7 +209,8 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                 <span className="text-xl font-bold text-white transition-all hover:text-[#14a800]">
                   {weeklyHours}:{weeklyMinutes.toString().padStart(2, '0')} <span className="text-sm font-normal text-gray-500">of 40 hrs</span>
                 </span>
-                <span className="text-xs text-gray-400">This Week</span>
+                <span className="text-xs text-green-500 font-medium">${weeklyEarnings.toFixed(2)}</span>
+                <span className="text-[10px] text-gray-400">This Week</span>
               </div>
             </div>
             <div className="flex gap-4 text-sm sm:ml-4 sm:border-l border-[#333] pl-0 sm:pl-4 w-full sm:w-auto justify-center">
@@ -275,6 +282,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                               src={`/api/image/${log._id}`}
                               timestamp={new Date(log.timestamp).toLocaleTimeString()}
                               activity={log.activity}
+                              id={log._id}
                             >
                               <div className="aspect-video bg-[#121212] rounded-md overflow-hidden border border-[#333] relative cursor-pointer hover:ring-2 ring-[#14a800] transition-all">
                                 {/* Lazy load image via API */}

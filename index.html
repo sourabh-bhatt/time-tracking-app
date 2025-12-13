@@ -58,12 +58,16 @@
                 <div class="stat-item">
                     <div id="todayTotal" class="stat-value">0:00 hrs</div>
                     <div class="stat-label">Today (<span id="todayDay">Fri</span>)</div>
+                    <div style="font-size: 0.85em; color: #14a800; margin-top: 4px;">Earned: <span
+                            id="todayEarnings">$0.00</span></div>
                 </div>
                 <div class="stat-item" style="text-align: right;">
                     <div class="stat-value">
                         <span id="weekTotal">0:00</span> <span class="limit-text">of 40</span>
                     </div>
                     <div class="stat-label week-total" id="weekLabel">This week (40h Limit)</div>
+                    <div style="font-size: 0.85em; color: #14a800; margin-top: 4px;">Earned: <span
+                            id="weekEarnings">$0.00</span></div>
                 </div>
             </div>
 
@@ -94,7 +98,7 @@
             </div>
 
             <div class="footer-actions">
-                <a href="#" class="view-diary-link">View Work Diary</a>
+                <a href="#" class="view-diary-link" onclick="openDiary()">View Work Diary</a>
             </div>
         </div>
 

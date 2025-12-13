@@ -155,23 +155,28 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#333]">
-                            {stats.map((day) => (
-                                <tr key={day.date} className="hover:bg-[#252525] transition-colors">
-                                    <td className="px-6 py-4 text-white font-medium whitespace-nowrap">
-                                        {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                    </td>
-                                    <td className="px-6 py-4 text-gray-400 whitespace-nowrap">{day.dayName}</td>
-                                    <td className="px-6 py-4 font-mono text-lg text-white whitespace-nowrap">
-                                        {formatDuration(day.sourabh)}
-                                    </td>
-                                    <td className="px-6 py-4 font-mono text-lg text-white whitespace-nowrap">
-                                        {formatDuration(day.prayash)}
-                                    </td>
-                                    <td className="px-6 py-4 font-mono text-lg text-white text-right font-bold whitespace-nowrap">
-                                        {formatDuration(day.sourabh + day.prayash)}
-                                    </td>
-                                </tr>
-                            ))}
+                            {stats.map((day) => {
+                                // Earned logic ($5/hr)
+                                const sourabhEarned = (day.sourabh / 3600) * 5;
+                                return (
+                                    <tr key={day.date} className="hover:bg-[#252525] transition-colors">
+                                        <td className="px-6 py-4 text-white font-medium whitespace-nowrap">
+                                            {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                        </td>
+                                        <td className="px-6 py-4 text-gray-400 whitespace-nowrap">{day.dayName}</td>
+                                        <td className="px-6 py-4 font-mono text-lg text-white whitespace-nowrap">
+                                            <div>{formatDuration(day.sourabh)}</div>
+                                            <div className="text-xs text-green-500 font-bold">${sourabhEarned.toFixed(2)}</div>
+                                        </td>
+                                        <td className="px-6 py-4 font-mono text-lg text-white whitespace-nowrap">
+                                            {formatDuration(day.prayash)}
+                                        </td>
+                                        <td className="px-6 py-4 font-mono text-lg text-white text-right font-bold whitespace-nowrap">
+                                            {formatDuration(day.sourabh + day.prayash)}
+                                        </td>
+                                    </tr>
+                                )
+                            })}
                         </tbody>
                         <tfoot className="bg-[#2a2a2a] border-t border-[#333]">
                             <tr>
@@ -180,6 +185,7 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                                 </td>
                                 <td className="px-6 py-4 font-bold text-xl text-[#14a800] whitespace-nowrap">
                                     {formatDuration(totalSourabh)}
+                                    <div className="text-sm font-bold text-green-500">${((totalSourabh / 3600) * 5).toFixed(2)}</div>
                                     <span className="text-xs font-normal text-gray-500 block">of 40h</span>
                                 </td>
                                 <td className="px-6 py-4 font-bold text-xl text-[#00acc1] whitespace-nowrap">

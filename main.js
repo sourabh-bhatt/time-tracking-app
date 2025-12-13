@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const screenshot = require('screenshot-desktop');
 const { uIOhook } = require('uiohook-napi');
@@ -144,9 +144,16 @@ async function fetchStats(userId) {
 
 function sendStatsUpdate() {
     if (mainWindow) {
+        // Hardcoded rate for now as requested
+        const hourlyRate = 5;
+        const todayEarnings = (todaySeconds / 3600) * hourlyRate;
+        const weekEarnings = (weekSeconds / 3600) * hourlyRate;
+
         mainWindow.webContents.send('update-stats', {
             todaySeconds,
-            weekSeconds
+            weekSeconds,
+            todayEarnings,
+            weekEarnings
         });
     }
 }
@@ -184,6 +191,10 @@ async function captureAndLog(type = 'auto') {
             weekSeconds += 600;
         }
 
+        const hourlyRate = 5;
+        const todayEarnings = (todaySeconds / 3600) * hourlyRate;
+        const weekEarnings = (weekSeconds / 3600) * hourlyRate;
+
         sendStatsUpdate();
 
         // --- UPDATE USER STATS IN DB ---
@@ -202,6 +213,8 @@ async function captureAndLog(type = 'auto') {
                     weeklyLimitHours: 40,
                     todaySeconds: todaySeconds,
                     weekSeconds: weekSeconds,
+                    todayEarnings: todayEarnings,
+                    weekEarnings: weekEarnings,
                     dateStr: readableDate,
                     lastUpdated: timestamp
                 }
@@ -216,6 +229,13 @@ async function captureAndLog(type = 'auto') {
                 timestamp: timestamp,
                 image: `data:image/png;base64,${imgBuffer.toString('base64')}`,
                 type: type
+            });
+
+            // Trigger Notification & Sound
+            mainWindow.webContents.send('play-sound');
+            mainWindow.webContents.send('show-notification', {
+                title: 'Screenshot Taken',
+                body: 'Your activity has been logged.'
             });
         }
 
@@ -300,6 +320,10 @@ ipcMain.on('delete-screenshot', async (event, id) => {
     } catch (err) {
         console.error('Error deleting screenshot:', err);
     }
+});
+
+ipcMain.on('open-external', (event, url) => {
+    shell.openExternal(url);
 });
 
 app.on('ready', async () => {

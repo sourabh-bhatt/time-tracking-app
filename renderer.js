@@ -23,13 +23,24 @@ const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 todayDayDisplay.textContent = days[new Date().getDay()];
 
 // Login Logic
+let currentUser = 'sourabh'; // Default fallback
+
+// Login Logic
 window.login = (userId) => {
+    currentUser = userId; // Store for link
     ipcRenderer.send('user-login', userId);
+};
+
+window.openDiary = () => {
+    // Open the Public Diary Route
+    const url = `http://localhost:3000/diary?user=${currentUser}`;
+    ipcRenderer.send('open-external', url);
 };
 
 // Initialize UI after login
 ipcRenderer.on('init-user', (event, userId) => {
-    // Format Name: sourabh -> Sourabh Sourabh (as in mockup) or just Sourabh
+    currentUser = userId;
+    // Format Name: sourabh -> Sourabh Sourabh
     const formattedName = userId.charAt(0).toUpperCase() + userId.slice(1);
     footerUserName.textContent = `${formattedName} ${formattedName}`; // Mockup style
 
@@ -98,9 +109,40 @@ function pad(num) {
 
 // Handle Stats Updates from Main (Today/Week totals)
 ipcRenderer.on('update-stats', (event, stats) => {
-    // stats = { todaySeconds: 123, weekSeconds: 4567 }
+    // stats = { todaySeconds, weekSeconds, todayEarnings, weekEarnings }
     todayTotalDisplay.textContent = formatHrs(stats.todaySeconds);
     weekTotalDisplay.textContent = formatDecimalHrs(stats.weekSeconds);
+
+    // Update Earnings if elements exist (will add to HTML next)
+    const todayEarningsEl = document.getElementById('todayEarnings');
+    const weekEarningsEl = document.getElementById('weekEarnings');
+
+    if (todayEarningsEl) todayEarningsEl.textContent = `$${stats.todayEarnings.toFixed(2)}`;
+    if (weekEarningsEl) weekEarningsEl.textContent = `$${stats.weekEarnings.toFixed(2)}`;
+});
+
+// Handle Sound
+ipcRenderer.on('play-sound', () => {
+    const audio = new Audio('assets/shutter.mp3'); // We'll need to ensure this exists or use a base64 default
+    // Fallback if file doesn't exist: Simple beep or encoded sound
+    // Using a short base64 beep for reliability if file is missing
+    const beep = "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU"; // Very short/empty, replacing with real simple beep logic or just HTML5 default if available
+    // Better: Just use a system notification sound or standard UI sound. 
+    // For now, let's try a standard HTML5 beep if possible or just log it. 
+    // Actually, let's play a simple created tone or just use a placeholder file path and I'll create the file.
+    // I'll create a 'shutter.mp3' or 'notification.wav' in assets.
+
+    // Let's assume we will create 'notification.mp3' in a new assets folder.
+    const notificationAudio = new Audio('./assets/notification.mp3');
+    notificationAudio.volume = 0.5;
+    notificationAudio.play().catch(e => console.log('Audio play failed', e));
+});
+
+// Handle Notification
+ipcRenderer.on('show-notification', (event, data) => {
+    const notification = new Notification(data.title, {
+        body: data.body
+    });
 });
 
 // Handle New Screenshot for Preview

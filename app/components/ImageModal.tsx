@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface ImageModalProps {
     src: string;
@@ -11,10 +12,36 @@ interface ImageModalProps {
         mouseMoves: number;
     };
     children: ReactNode;
+    id: string; // Added ID for deletion
 }
 
-export default function ImageModal({ src, timestamp, activity, children }: ImageModalProps) {
+export default function ImageModal({ src, timestamp, activity, children, id }: ImageModalProps) {
     const [isOpen, setIsOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const router = useRouter();
+
+    const handleDelete = async () => {
+        if (!confirm('Are you sure you want to delete this screenshot? This action cannot be undone.')) return;
+
+        setIsDeleting(true);
+        try {
+            const res = await fetch(`/api/log/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                setIsOpen(false);
+                router.refresh(); // Refresh server components to remove the item
+            } else {
+                alert('Failed to delete screenshot');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Error deleting screenshot');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     return (
         <>
@@ -39,6 +66,14 @@ export default function ImageModal({ src, timestamp, activity, children }: Image
                                 <span>🖱️ {activity.mouseClicks} Clicks</span>
                                 <span>✋ {activity.mouseMoves} Moves</span>
                             </div>
+                            <div className="h-4 w-px bg-gray-300 dark:bg-gray-600"></div>
+                            <button
+                                onClick={handleDelete}
+                                disabled={isDeleting}
+                                className="text-red-500 hover:text-red-700 font-medium text-sm disabled:opacity-50"
+                            >
+                                {isDeleting ? 'Deleting...' : '🗑️ Delete'}
+                            </button>
                         </div>
 
                         <button
