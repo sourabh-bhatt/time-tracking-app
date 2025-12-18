@@ -33,7 +33,7 @@ window.login = (userId) => {
 
 window.openDiary = () => {
     // Open the Public Diary Route
-    const url = `http://localhost:3000/diary?user=${currentUser}`;
+    const url = `https://time-tracking-app-two-nu.vercel.app/diary?user=${currentUser}`;
     ipcRenderer.send('open-external', url);
 };
 

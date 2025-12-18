@@ -85,10 +85,29 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
     return count;
   };
 
+  // Helper to fetch all-time logs
+  const getAllTimeEarnings = async (userId: string) => {
+    const client = await clientPromise;
+    const db = client.db("employee_monitor");
+    const collectionName = `logs_${userId.toLowerCase()}`;
+
+    const count = await db.collection(collectionName).countDocuments({
+      userId: userId,
+      type: 'auto' // Only count auto logs for time
+    });
+
+    return count;
+  };
+
   const weeklyCount = await getWeeklyLogs(selectedUser, selectedDate);
   const weeklySeconds = weeklyCount * 600;
   const weeklyHours = Math.floor(weeklySeconds / 3600);
   const weeklyMinutes = Math.floor((weeklySeconds % 3600) / 60);
+
+  const allTimeCount = await getAllTimeEarnings(selectedUser);
+  const allTimeSeconds = allTimeCount * 600;
+  // const allTimeHours = Math.floor(allTimeSeconds / 3600); // Unused for now if we just show $
+  const allTimeEarnings = (allTimeSeconds / 3600) * 5; // $5/hr rate
 
   // Helper to get IST Hour
   const getISTHour = (date: Date) => {
@@ -211,6 +230,15 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                 </span>
                 <span className="text-xs text-green-500 font-medium">${weeklyEarnings.toFixed(2)}</span>
                 <span className="text-[10px] text-gray-400">This Week</span>
+              </div>
+
+              <div className="h-8 w-[1px] bg-[#333]"></div>
+
+              <div className="flex flex-col items-center sm:items-end">
+                <span className="text-xl font-bold text-white transition-all hover:text-[#14a800]">
+                  ${allTimeEarnings.toFixed(2)}
+                </span>
+                <span className="text-[10px] text-gray-400">All Time</span>
               </div>
             </div>
             <div className="flex gap-4 text-sm sm:ml-4 sm:border-l border-[#333] pl-0 sm:pl-4 w-full sm:w-auto justify-center">

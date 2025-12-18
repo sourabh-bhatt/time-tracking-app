@@ -68,6 +68,8 @@ function formatDuration(seconds: number) {
     return `${hrs}h ${mins}m`;
 }
 
+import DownloadReportButton from "../components/DownloadReportButton";
+
 export default async function ReportPage(props: { searchParams: Promise<{ date?: string }> }) {
     const searchParams = await props.searchParams;
     const dateParam = searchParams.date || new Date().toISOString().split('T')[0];
@@ -101,6 +103,10 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
     const weekEnd = new Date(startOfWeek);
     weekEnd.setDate(weekEnd.getDate() + 6);
 
+    // Format dates for filename
+    const startDateStr = startOfWeek.toLocaleDateString('en-CA');
+    const endDateStr = weekEnd.toLocaleDateString('en-CA');
+
     return (
         <div className="min-h-screen bg-[#121212] text-gray-300 font-sans">
             <header className="bg-[#1e1e1e] border-b border-[#333] px-4 md:px-6 py-4 sticky top-0 z-20">
@@ -113,6 +119,7 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                     </div>
 
                     <div className="flex items-center gap-4 w-full md:w-auto justify-end">
+                        <DownloadReportButton stats={stats} startDate={startDateStr} endDate={endDateStr} />
                         <div className="text-sm text-gray-400">
                             Signed in as <span className="text-white font-medium">admin</span>
                         </div>
