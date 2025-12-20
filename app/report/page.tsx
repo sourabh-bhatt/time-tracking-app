@@ -193,11 +193,11 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                                 <td className="px-6 py-4 font-bold text-xl text-[#14a800] whitespace-nowrap">
                                     {formatDuration(totalSourabh)}
                                     <div className="text-sm font-bold text-green-500">${((totalSourabh / 3600) * 5).toFixed(2)}</div>
-                                    <span className="text-xs font-normal text-gray-500 block">of 40h</span>
+                                    <span className="text-xs font-normal text-gray-500 block">of 60h</span>
                                 </td>
                                 <td className="px-6 py-4 font-bold text-xl text-[#00acc1] whitespace-nowrap">
                                     {formatDuration(totalPrayash)}
-                                    <span className="text-xs font-normal text-gray-500 block">of 40h</span>
+                                    <span className="text-xs font-normal text-gray-500 block">of 60h</span>
                                 </td>
                                 <td className="px-6 py-4 font-bold text-xl text-white text-right whitespace-nowrap">
                                     {formatDuration(totalSourabh + totalPrayash)}

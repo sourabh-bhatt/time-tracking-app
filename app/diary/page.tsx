@@ -208,7 +208,7 @@ export default async function Diary(props: { searchParams: Promise<{ user?: stri
 
                             <div className="flex flex-col items-center sm:items-end">
                                 <span className="text-xl font-bold text-white transition-all hover:text-[#14a800]">
-                                    {weeklyHours}:{weeklyMinutes.toString().padStart(2, '0')} <span className="text-sm font-normal text-gray-500">of 40 hrs</span>
+                                    {weeklyHours}:{weeklyMinutes.toString().padStart(2, '0')} <span className="text-sm font-normal text-gray-500">of 60 hrs</span>
                                 </span>
                                 <span className="text-xs text-green-500 font-medium">${weeklyEarnings.toFixed(2)}</span>
                                 <span className="text-[10px] text-gray-400">This Week</span>

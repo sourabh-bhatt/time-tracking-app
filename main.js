@@ -127,7 +127,7 @@ async function fetchStats(userId) {
             {
                 $set: {
                     userId: userId,
-                    weeklyLimitHours: 40,
+                    weeklyLimitHours: 60,
                     todaySeconds: todaySeconds,
                     weekSeconds: weekSeconds,
                     dateStr: readableDate,
@@ -210,7 +210,7 @@ async function captureAndLog(type = 'auto') {
             {
                 $set: {
                     userId: currentUserId,
-                    weeklyLimitHours: 40,
+                    weeklyLimitHours: 60,
                     todaySeconds: todaySeconds,
                     weekSeconds: weekSeconds,
                     todayEarnings: todayEarnings,
