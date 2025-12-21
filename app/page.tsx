@@ -2,7 +2,7 @@ import clientPromise from "../lib/mongodb";
 import Link from "next/link";
 import ImageModal from "./components/ImageModal";
 import EarningsEditor from "./components/EarningsEditor";
-import { getManualEarnings } from "./actions";
+import { getManualEarnings, syncWeeklyReport } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -193,6 +193,11 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
             >
               Weekly Reports
             </Link>
+            <form action={syncWeeklyReport.bind(null, selectedUser, selectedDateStr)}>
+              <button type="submit" className="bg-[#252525] border border-[#333] hover:bg-[#333] text-white px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap">
+                Sync to Sheets
+              </button>
+            </form>
             <button className="bg-[#14a800] hover:bg-[#108a00] text-white px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap">
               Request Manual Time
             </button>
