@@ -1,6 +1,8 @@
 import clientPromise from "../lib/mongodb";
 import Link from "next/link";
 import ImageModal from "./components/ImageModal";
+import EarningsEditor from "./components/EarningsEditor";
+import { getManualEarnings } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -157,6 +159,8 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
     return d.toISOString().split('T')[0];
   };
 
+  const manualEarningsData = await getManualEarnings(selectedUser);
+
   return (
     <div className="min-h-screen bg-[#121212] text-gray-300 font-sans">
       {/* Header */}
@@ -167,7 +171,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
 
             {/* User Selector */}
             <div className="flex bg-[#2a2a2a] rounded-lg p-1 w-full md:w-auto justify-center">
-              {['sourabh', 'prayash'].map((user) => (
+              {['sourabh'].map((user) => (
                 <Link
                   key={user}
                   href={`/?user=${user}&date=${selectedDateStr}`}
@@ -241,10 +245,14 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                 <span className="text-[10px] text-gray-400">All Time</span>
               </div>
             </div>
-            <div className="flex gap-4 text-sm sm:ml-4 sm:border-l border-[#333] pl-0 sm:pl-4 w-full sm:w-auto justify-center">
-              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#14a800]"></span> Tracked</div>
-              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#00acc1]"></span> Manual</div>
-              <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#e53935]"></span> Overtime</div>
+
+            <div className="flex flex-col items-end gap-2 sm:ml-4 sm:border-l border-[#333] pl-0 sm:pl-4">
+              <EarningsEditor userId={selectedUser} initialData={manualEarningsData} />
+              <div className="flex gap-4 text-sm justify-center">
+                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#14a800]"></span> Tracked</div>
+                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#00acc1]"></span> Manual</div>
+                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#e53935]"></span> Overtime</div>
+              </div>
             </div>
           </div>
         </div>

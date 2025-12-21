@@ -7,7 +7,6 @@ interface DailyStat {
     date: string; // YYYY-MM-DD
     dayName: string; // Mon, Tue...
     sourabh: number; // Seconds
-    prayash: number; // Seconds
 }
 
 async function getWeeklyReport(startDate: Date) {
@@ -26,7 +25,7 @@ async function getWeeklyReport(startDate: Date) {
     fetchEnd.setDate(fetchEnd.getDate() + 8); // 7 days + 1 buffer
 
     // 1. Fetch all auto logs for both users in this range
-    const users = ['sourabh', 'prayash'];
+    const users = ['sourabh'];
     const dailyStats: { [key: string]: DailyStat } = {};
 
     // Initialize days
@@ -36,7 +35,7 @@ async function getWeeklyReport(startDate: Date) {
         // Use 'en-CA' (YYYY-MM-DD) with local time to avoid UTC shift
         const dateStr = d.toLocaleDateString('en-CA');
         const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
-        dailyStats[dateStr] = { date: dateStr, dayName, sourabh: 0, prayash: 0 };
+        dailyStats[dateStr] = { date: dateStr, dayName, sourabh: 0 };
     }
 
     for (const user of users) {
@@ -54,7 +53,6 @@ async function getWeeklyReport(startDate: Date) {
 
             if (dailyStats[istDateStr]) {
                 if (user === 'sourabh') dailyStats[istDateStr].sourabh += 600;
-                if (user === 'prayash') dailyStats[istDateStr].prayash += 600;
             }
         });
     }
@@ -85,7 +83,6 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
     const stats = await getWeeklyReport(startOfWeek);
 
     const totalSourabh = stats.reduce((acc, curr) => acc + curr.sourabh, 0);
-    const totalPrayash = stats.reduce((acc, curr) => acc + curr.prayash, 0);
 
     // Navigation
     const getPrevWeek = () => {
@@ -157,7 +154,6 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                                 <th className="px-6 py-4 text-sm font-medium text-gray-400 whitespace-nowrap">Date</th>
                                 <th className="px-6 py-4 text-sm font-medium text-gray-400 whitespace-nowrap">Day</th>
                                 <th className="px-6 py-4 text-sm font-medium text-[#14a800] whitespace-nowrap">Sourabh</th>
-                                <th className="px-6 py-4 text-sm font-medium text-[#00acc1] whitespace-nowrap">Prayash</th>
                                 <th className="px-6 py-4 text-sm font-medium text-white text-right whitespace-nowrap">Daily Total</th>
                             </tr>
                         </thead>
@@ -175,11 +171,8 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                                             <div>{formatDuration(day.sourabh)}</div>
                                             <div className="text-xs text-green-500 font-bold">${sourabhEarned.toFixed(2)}</div>
                                         </td>
-                                        <td className="px-6 py-4 font-mono text-lg text-white whitespace-nowrap">
-                                            {formatDuration(day.prayash)}
-                                        </td>
                                         <td className="px-6 py-4 font-mono text-lg text-white text-right font-bold whitespace-nowrap">
-                                            {formatDuration(day.sourabh + day.prayash)}
+                                            {formatDuration(day.sourabh)}
                                         </td>
                                     </tr>
                                 )
@@ -195,12 +188,8 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                                     <div className="text-sm font-bold text-green-500">${((totalSourabh / 3600) * 5).toFixed(2)}</div>
                                     <span className="text-xs font-normal text-gray-500 block">of 60h</span>
                                 </td>
-                                <td className="px-6 py-4 font-bold text-xl text-[#00acc1] whitespace-nowrap">
-                                    {formatDuration(totalPrayash)}
-                                    <span className="text-xs font-normal text-gray-500 block">of 60h</span>
-                                </td>
                                 <td className="px-6 py-4 font-bold text-xl text-white text-right whitespace-nowrap">
-                                    {formatDuration(totalSourabh + totalPrayash)}
+                                    {formatDuration(totalSourabh)}
                                 </td>
                             </tr>
                         </tfoot>

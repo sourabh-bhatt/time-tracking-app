@@ -155,6 +155,18 @@ function sendStatsUpdate() {
             todayEarnings,
             weekEarnings
         });
+
+        // Also send manual earnings if we have them
+        const statsCollection = dbInstance.collection('user_stats');
+        statsCollection.findOne({ userId: currentUserId }).then(stats => {
+            if (stats) {
+                mainWindow.webContents.send('update-manual-earnings-data', {
+                    weeklyPaid: stats.manual_weekly_paid || 0,
+                    weeklyPending: stats.manual_weekly_pending || 0,
+                    totalPending: stats.manual_total_pending || 0
+                });
+            }
+        });
     }
 }
 
@@ -319,6 +331,48 @@ ipcMain.on('delete-screenshot', async (event, id) => {
         await fetchStats(currentUserId);
     } catch (err) {
         console.error('Error deleting screenshot:', err);
+    }
+});
+
+ipcMain.on('get-manual-earnings', async (event) => {
+    if (!dbInstance || !currentUserId) return;
+    const statsCollection = dbInstance.collection('user_stats');
+    try {
+        const stats = await statsCollection.findOne({ userId: currentUserId });
+        event.sender.send('update-manual-earnings-data', {
+            weeklyPaid: stats?.manual_weekly_paid || 0,
+            weeklyPending: stats?.manual_weekly_pending || 0,
+            totalPending: stats?.manual_total_pending || 0
+        });
+    } catch (err) {
+        console.error('Error fetching manual earnings:', err);
+    }
+});
+
+ipcMain.on('update-manual-earnings', async (event, data) => {
+    if (!dbInstance || !currentUserId) return;
+    const statsCollection = dbInstance.collection('user_stats');
+    try {
+        await statsCollection.updateOne(
+            { userId: currentUserId },
+            {
+                $set: {
+                    manual_weekly_paid: parseFloat(data.weeklyPaid) || 0,
+                    manual_weekly_pending: parseFloat(data.weeklyPending) || 0,
+                    manual_total_pending: parseFloat(data.totalPending) || 0,
+                    lastUpdated: new Date()
+                }
+            },
+            { upsert: true }
+        );
+        // Echo back to update UI
+        event.sender.send('update-manual-earnings-data', {
+            weeklyPaid: parseFloat(data.weeklyPaid) || 0,
+            weeklyPending: parseFloat(data.weeklyPending) || 0,
+            totalPending: parseFloat(data.totalPending) || 0
+        });
+    } catch (err) {
+        console.error('Error updating manual earnings:', err);
     }
 });
 

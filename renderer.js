@@ -14,6 +14,15 @@ const screenshotPreview = document.getElementById('screenshotPreview');
 const noPreviewMsg = document.getElementById('noPreviewMsg');
 const lastCaptureTime = document.getElementById('lastCaptureTime');
 
+// Earnings Modal Elements
+const earningsModal = document.getElementById('earnings-modal');
+const closeEarningsModal = document.getElementById('closeEarningsModal');
+const weeklyPaidInput = document.getElementById('weeklyPaidInput');
+const weeklyPendingInput = document.getElementById('weeklyPendingInput');
+const totalPendingInput = document.getElementById('totalPendingInput');
+const saveEarningsBtn = document.getElementById('saveEarningsBtn');
+const usersSettingsIcon = document.querySelector('.settings-icon');
+
 let isTracking = false;
 let sessionInterval;
 let sessionSeconds = 0;
@@ -137,6 +146,46 @@ ipcRenderer.on('play-sound', () => {
     notificationAudio.volume = 0.5;
     notificationAudio.play().catch(e => console.log('Audio play failed', e));
 });
+
+// Handle Earnings Data
+ipcRenderer.on('update-manual-earnings-data', (event, data) => {
+    if (weeklyPaidInput) weeklyPaidInput.value = data.weeklyPaid;
+    if (weeklyPendingInput) weeklyPendingInput.value = data.weeklyPending;
+    if (totalPendingInput) totalPendingInput.value = data.totalPending;
+});
+
+// Earnings Modal Logic
+if (usersSettingsIcon) {
+    usersSettingsIcon.addEventListener('click', () => {
+        // Request latest data when opening
+        ipcRenderer.send('get-manual-earnings');
+        earningsModal.style.display = 'block';
+    });
+}
+
+if (closeEarningsModal) {
+    closeEarningsModal.addEventListener('click', () => {
+        earningsModal.style.display = 'none';
+    });
+}
+
+window.onclick = (event) => {
+    if (event.target == earningsModal) {
+        earningsModal.style.display = 'none';
+    }
+};
+
+if (saveEarningsBtn) {
+    saveEarningsBtn.addEventListener('click', () => {
+        const data = {
+            weeklyPaid: weeklyPaidInput.value,
+            weeklyPending: weeklyPendingInput.value,
+            totalPending: totalPendingInput.value
+        };
+        ipcRenderer.send('update-manual-earnings', data);
+        earningsModal.style.display = 'none';
+    });
+}
 
 // Handle Notification
 ipcRenderer.on('show-notification', (event, data) => {

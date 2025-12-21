@@ -9,7 +9,6 @@ interface DailyStat {
     date: string; // YYYY-MM-DD
     dayName: string; // Mon, Tue...
     sourabh: number; // Seconds
-    prayash: number; // Seconds
 }
 
 interface DownloadReportButtonProps {
@@ -21,22 +20,18 @@ interface DownloadReportButtonProps {
 export default function DownloadReportButton({ stats, startDate, endDate }: DownloadReportButtonProps) {
     const handleCsvDownload = () => {
         // 1. Prepare CSV Header
-        const headers = ["Date", "Day", "Sourabh Hours", "Sourabh Earnings ($)", "Prayash Hours", "Total Hours"];
+        const headers = ["Date", "Day", "Sourabh Hours", "Sourabh Earnings ($)"];
 
         // 2. Prepare Rows
         const rows = stats.map((day) => {
             const sourabhHours = (day.sourabh / 3600).toFixed(2);
             const sourabhEarnings = ((day.sourabh / 3600) * 5).toFixed(2);
-            const prayashHours = (day.prayash / 3600).toFixed(2);
-            const totalHours = ((day.sourabh + day.prayash) / 3600).toFixed(2);
 
             return [
                 day.date,
                 day.dayName,
                 sourabhHours,
-                sourabhEarnings,
-                prayashHours,
-                totalHours
+                sourabhEarnings
             ];
         });
 
@@ -71,36 +66,28 @@ export default function DownloadReportButton({ stats, startDate, endDate }: Down
         doc.text(`${startDate} to ${endDate} `, 14, 30);
 
         // Prepare Table Data
-        const tableHead = [["Date", "Day", "Sourabh (Hrs)", "Sourabh ($)", "Prayash (Hrs)", "Total (Hrs)"]];
+        const tableHead = [["Date", "Day", "Sourabh (Hrs)", "Sourabh ($)"]];
         const tableBody = stats.map((day) => {
             const sourabhHours = (day.sourabh / 3600).toFixed(2);
             const sourabhEarnings = ((day.sourabh / 3600) * 5).toFixed(2);
-            const prayashHours = (day.prayash / 3600).toFixed(2);
-            const totalHours = ((day.sourabh + day.prayash) / 3600).toFixed(2);
 
             return [
                 day.date,
                 day.dayName,
                 sourabhHours,
-                `$${sourabhEarnings} `,
-                prayashHours,
-                totalHours
+                `$${sourabhEarnings} `
             ];
         });
 
         // Calculate Totals for Footer
         const totalSourabhSec = stats.reduce((acc, curr) => acc + curr.sourabh, 0);
-        const totalPrayashSec = stats.reduce((acc, curr) => acc + curr.prayash, 0);
-        const totalSec = totalSourabhSec + totalPrayashSec;
         const totalEarnings = ((totalSourabhSec / 3600) * 5).toFixed(2);
 
         const tableFoot = [[
             "Totals",
             "",
             (totalSourabhSec / 3600).toFixed(2),
-            `$${totalEarnings} `,
-            (totalPrayashSec / 3600).toFixed(2),
-            (totalSec / 3600).toFixed(2)
+            `$${totalEarnings} `
         ]];
 
         // Generate Table
