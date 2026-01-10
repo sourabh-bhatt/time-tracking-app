@@ -171,6 +171,14 @@ function sendStatsUpdate() {
 }
 
 // --- Screenshot & Logging Logic ---
+const fs = require('fs');
+
+function logToFile(message) {
+    const logPath = path.join(app.getPath('userData'), 'tracker_debug.log');
+    const timestamp = new Date().toISOString();
+    fs.appendFileSync(logPath, `[${timestamp}] ${message}\n`);
+}
+
 async function captureAndLog(type = 'auto') {
     // type: 'start' | 'auto' | 'stop'
     if (!dbInstance || !isTracking || !currentUserId) return;
@@ -181,7 +189,16 @@ async function captureAndLog(type = 'auto') {
     const statsCollection = dbInstance.collection('user_stats');
 
     try {
-        const imgBuffer = await screenshot({ format: 'png' });
+        let imgBuffer;
+        try {
+            imgBuffer = await screenshot({ format: 'png' });
+        } catch (screenshotErr) {
+            console.error('Screenshot failed:', screenshotErr);
+            logToFile(`Screenshot failed: ${screenshotErr.message}`);
+            // Create a 1x1 dummy PNG buffer (base64 for a black pixel)
+            imgBuffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+        }
+
         const timestamp = new Date();
 
         const logEntry = {
@@ -252,12 +269,14 @@ async function captureAndLog(type = 'auto') {
         }
 
         console.log(`Logged (${type}) for ${currentUserId} in ${collectionName}`);
+        logToFile(`Logged (${type}) successfully.`);
 
         // Reset counts
         inputCounts = { mouseClicks: 0, keyPresses: 0, mouseMoves: 0 };
 
     } catch (err) {
         console.error('Error capturing/logging:', err);
+        logToFile(`Critical Error in captureAndLog: ${err.message}`);
     }
 }
 
