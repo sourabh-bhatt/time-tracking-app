@@ -8,31 +8,38 @@ import autoTable from "jspdf-autotable";
 interface DailyStat {
     date: string; // YYYY-MM-DD
     dayName: string; // Mon, Tue...
-    sourabh: number; // Seconds
+    totalTime: number; // Seconds
 }
 
 interface DownloadReportButtonProps {
     stats: DailyStat[];
     startDate: string;
     endDate: string;
+    selectedUser: string;
 }
 
-export default function DownloadReportButton({ stats, startDate, endDate }: DownloadReportButtonProps) {
+export default function DownloadReportButton({ stats, startDate, endDate, selectedUser }: DownloadReportButtonProps) {
+    const userCap = selectedUser.charAt(0).toUpperCase() + selectedUser.slice(1);
+
     const handleCsvDownload = () => {
         // 1. Prepare CSV Header
-        const headers = ["Date", "Day", "Sourabh Hours", "Sourabh Earnings ($)"];
+        const headers = ["Date", "Day", `${userCap} Hours`];
+        if (selectedUser === 'sourabh') headers.push(`${userCap} Earnings ($)`);
 
         // 2. Prepare Rows
         const rows = stats.map((day) => {
-            const sourabhHours = (day.sourabh / 3600).toFixed(2);
-            const sourabhEarnings = ((day.sourabh / 3600) * 5).toFixed(2);
+            const hours = (day.totalTime / 3600).toFixed(2);
+            const earnings = ((day.totalTime / 3600) * 5).toFixed(2);
 
-            return [
+            const row = [
                 day.date,
                 day.dayName,
-                sourabhHours,
-                sourabhEarnings
+                hours
             ];
+            
+            if (selectedUser === 'sourabh') row.push(earnings);
+
+            return row;
         });
 
         // 3. Construct CSV Content
@@ -66,29 +73,35 @@ export default function DownloadReportButton({ stats, startDate, endDate }: Down
         doc.text(`${startDate} to ${endDate} `, 14, 30);
 
         // Prepare Table Data
-        const tableHead = [["Date", "Day", "Sourabh (Hrs)", "Sourabh ($)"]];
+        const tableHead = [["Date", "Day", `${userCap} (Hrs)`]];
+        if (selectedUser === 'sourabh') tableHead[0].push(`${userCap} ($)`);
+        
         const tableBody = stats.map((day) => {
-            const sourabhHours = (day.sourabh / 3600).toFixed(2);
-            const sourabhEarnings = ((day.sourabh / 3600) * 5).toFixed(2);
+            const hours = (day.totalTime / 3600).toFixed(2);
+            const earnings = ((day.totalTime / 3600) * 5).toFixed(2);
 
-            return [
+            const row = [
                 day.date,
                 day.dayName,
-                sourabhHours,
-                `$${sourabhEarnings} `
+                hours
             ];
+            if (selectedUser === 'sourabh') row.push(`$${earnings} `);
+            return row;
         });
 
         // Calculate Totals for Footer
-        const totalSourabhSec = stats.reduce((acc, curr) => acc + curr.sourabh, 0);
-        const totalEarnings = ((totalSourabhSec / 3600) * 5).toFixed(2);
+        const totalSec = stats.reduce((acc, curr) => acc + curr.totalTime, 0);
+        const totalEarnings = ((totalSec / 3600) * 5).toFixed(2);
 
         const tableFoot = [[
             "Totals",
             "",
-            (totalSourabhSec / 3600).toFixed(2),
-            `$${totalEarnings} `
+            (totalSec / 3600).toFixed(2)
         ]];
+        
+        if (selectedUser === 'sourabh') {
+            tableFoot[0].push(`$${totalEarnings} `);
+        }
 
         // Generate Table
         autoTable(doc, {

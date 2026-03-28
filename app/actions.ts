@@ -67,7 +67,11 @@ export async function syncWeeklyReport(userId: string, dateStr: string) {
         type: 'auto'
     }).toArray();
 
-    const rows: any[] = [['Date', 'Day', 'Sourabh Hours', 'Sourabh Earnings ($)']];
+    const userCap = userId.charAt(0).toUpperCase() + userId.slice(1);
+    const headers = ['Date', 'Day', `${userCap} Hours`];
+    if (userId === 'sourabh') headers.push(`${userCap} Earnings ($)`);
+    
+    const rows: any[] = [headers];
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
     let totalSeconds = 0;
@@ -89,27 +93,37 @@ export async function syncWeeklyReport(userId: string, dateStr: string) {
         totalSeconds += seconds;
 
         const hours = seconds / 3600;
-        const earnings = hours * 5;
 
-        rows.push([
+        const rowData: any[] = [
             currentDate.toISOString().split('T')[0],
             days[currentDate.getDay()],
-            parseFloat(hours.toFixed(2)),
-            parseFloat(earnings.toFixed(2))
-        ]);
+            parseFloat(hours.toFixed(2))
+        ];
+
+        if (userId === 'sourabh') {
+            const earnings = hours * 5;
+            rowData.push(parseFloat(earnings.toFixed(2)));
+        }
+
+        rows.push(rowData);
     }
 
     // Totals
     const totalHoursVal = Math.floor(totalSeconds / 3600);
     const totalMinutesVal = Math.floor((totalSeconds % 3600) / 60);
-    const totalEarnings = (totalSeconds / 3600) * 5;
 
-    rows.push([
+    const totalsRow: any[] = [
         'Weekly Totals',
         '',
-        `${totalHoursVal}h ${totalMinutesVal}m of 60h`,
-        `$${totalEarnings.toFixed(2)}`
-    ]);
+        `${totalHoursVal}h ${totalMinutesVal}m of 60h`
+    ];
+
+    if (userId === 'sourabh') {
+        const totalEarnings = (totalSeconds / 3600) * 5;
+        totalsRow.push(`$${totalEarnings.toFixed(2)}`);
+    }
+
+    rows.push(totalsRow);
 
     await updateWeeklyReport(rows);
     revalidatePath('/');

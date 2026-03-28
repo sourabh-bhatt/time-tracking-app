@@ -76,6 +76,21 @@ ipcRenderer.on('init-user', (event, userId) => {
 
     loginContainer.style.display = 'none';
     mainContainer.style.display = 'flex'; // Changed to flex for the column layout
+
+    // Hide earnings if Prayash
+    const todayEarningsEl = document.getElementById('todayEarnings');
+    const weekEarningsEl = document.getElementById('weekEarnings');
+    const earningsToggleIcon = document.querySelector('.settings-icon');
+
+    if (currentUser === 'prayash') {
+        if (todayEarningsEl) todayEarningsEl.parentElement.style.display = 'none';
+        if (weekEarningsEl) weekEarningsEl.parentElement.style.display = 'none';
+        if (earningsToggleIcon) earningsToggleIcon.style.display = 'none';
+    } else {
+        if (todayEarningsEl) todayEarningsEl.parentElement.style.display = 'block';
+        if (weekEarningsEl) weekEarningsEl.parentElement.style.display = 'block';
+        if (earningsToggleIcon) earningsToggleIcon.style.display = 'inline-block';
+    }
 });
 
 // Toggle Tracking

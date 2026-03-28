@@ -9,8 +9,20 @@ export async function POST(request: Request) {
         const userLower = username.toLowerCase();
 
         if (userLower === 'admin' && password === 'Admin@881427') {
-            const response = NextResponse.json({ success: true });
+            const response = NextResponse.json({ success: true, redirect: '/?user=sourabh' });
             response.cookies.set('admin_session', 'true', {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                maxAge: 60 * 60 * 24 * 7, // 1 week
+                path: '/',
+            });
+            return response;
+        }
+
+        if (userLower === 'sourabh' && password === 'Sourabh@881427') {
+            const response = NextResponse.json({ success: true, redirect: '/?user=sourabh' });
+            response.cookies.set('sourabh_session', 'true', {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: 'strict',

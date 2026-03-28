@@ -62,9 +62,16 @@ import { cookies } from "next/headers";
 export default async function Home(props: { searchParams: Promise<{ user?: string, date?: string }> }) {
   const cookieStore = await cookies();
   const isAdmin = cookieStore.has('admin_session');
+  const isSourabh = cookieStore.has('sourabh_session');
   
   const searchParams = await props.searchParams;
-  const selectedUser = searchParams.user || (isAdmin ? 'sourabh' : 'prayash');
+  let selectedUser = searchParams.user || (isAdmin ? 'sourabh' : (isSourabh ? 'sourabh' : 'prayash'));
+  
+  // Protect data access
+  if (!isAdmin) {
+    selectedUser = isSourabh ? 'sourabh' : 'prayash';
+  }
+
   const selectedDateStr = searchParams.date || new Date().toISOString().split('T')[0];
   const selectedDate = new Date(selectedDateStr);
 
@@ -176,7 +183,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
 
             {/* User Selector */}
             <div className="flex bg-[#2a2a2a] rounded-lg p-1 w-full md:w-auto justify-center">
-              {(isAdmin ? ['sourabh', 'prayash'] : ['prayash']).map((user) => (
+              {(isAdmin ? ['sourabh', 'prayash'] : [selectedUser]).map((user) => (
                 <Link
                   key={user}
                   href={`/?user=${user}&date=${selectedDateStr}`}
@@ -193,7 +200,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
 
           <div className="flex items-center gap-4 w-full md:w-auto justify-center md:justify-end">
             <Link
-              href="/report"
+              href={`/report?user=${selectedUser}`}
               className="text-gray-400 hover:text-white text-sm font-medium transition-colors whitespace-nowrap"
             >
               Weekly Reports
@@ -232,7 +239,9 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                 <span className="text-2xl font-bold text-white transition-all hover:text-[#14a800]">
                   {totalHours}:{totalMinutes.toString().padStart(2, '0')} hrs
                 </span>
-                <span className="text-xs text-green-500 font-medium">${totalEarnings.toFixed(2)}</span>
+                {selectedUser === 'sourabh' && (
+                  <span className="text-xs text-green-500 font-medium">${totalEarnings.toFixed(2)}</span>
+                )}
                 <span className="text-[10px] text-gray-400">Today</span>
               </div>
 
@@ -242,28 +251,36 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                 <span className="text-xl font-bold text-white transition-all hover:text-[#14a800]">
                   {weeklyHours}:{weeklyMinutes.toString().padStart(2, '0')} <span className="text-sm font-normal text-gray-500">of 60 hrs</span>
                 </span>
-                <span className="text-xs text-green-500 font-medium">${weeklyEarnings.toFixed(2)}</span>
+                {selectedUser === 'sourabh' && (
+                  <span className="text-xs text-green-500 font-medium">${weeklyEarnings.toFixed(2)}</span>
+                )}
                 <span className="text-[10px] text-gray-400">This Week</span>
               </div>
 
-              <div className="h-8 w-[1px] bg-[#333]"></div>
+              {selectedUser === 'sourabh' && (
+                <>
+                  <div className="h-8 w-[1px] bg-[#333]"></div>
 
-              <div className="flex flex-col items-center sm:items-end">
-                <span className="text-xl font-bold text-white transition-all hover:text-[#14a800]">
-                  ${allTimeEarnings.toFixed(2)}
-                </span>
-                <span className="text-[10px] text-gray-400">All Time</span>
-              </div>
+                  <div className="flex flex-col items-center sm:items-end">
+                    <span className="text-xl font-bold text-white transition-all hover:text-[#14a800]">
+                      ${allTimeEarnings.toFixed(2)}
+                    </span>
+                    <span className="text-[10px] text-gray-400">All Time</span>
+                  </div>
+                </>
+              )}
             </div>
 
-            <div className="flex flex-col items-end gap-2 sm:ml-4 sm:border-l border-[#333] pl-0 sm:pl-4">
-              <EarningsEditor userId={selectedUser} initialData={manualEarningsData} />
-              <div className="flex gap-4 text-sm justify-center">
-                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#14a800]"></span> Tracked</div>
-                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#00acc1]"></span> Manual</div>
-                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#e53935]"></span> Overtime</div>
+            {selectedUser === 'sourabh' && (
+              <div className="flex flex-col items-end gap-2 sm:ml-4 sm:border-l border-[#333] pl-0 sm:pl-4">
+                <EarningsEditor userId={selectedUser} initialData={manualEarningsData} />
+                <div className="flex gap-4 text-sm justify-center">
+                  <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#14a800]"></span> Tracked</div>
+                  <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#00acc1]"></span> Manual</div>
+                  <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#e53935]"></span> Overtime</div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 

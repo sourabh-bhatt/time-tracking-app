@@ -28,7 +28,11 @@ export default function LoginPage() {
 
             if (res.ok && data.success) {
                 // Redirect to dashboard
-                router.push('/');
+                if (data.redirect) {
+                    router.push(data.redirect);
+                } else {
+                    router.push('/');
+                }
                 router.refresh();
             } else {
                 setError(data.message || 'Invalid credentials');

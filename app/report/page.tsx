@@ -6,10 +6,10 @@ export const dynamic = "force-dynamic";
 interface DailyStat {
     date: string; // YYYY-MM-DD
     dayName: string; // Mon, Tue...
-    sourabh: number; // Seconds
+    totalTime: number; // Seconds
 }
 
-async function getWeeklyReport(startDate: Date) {
+async function getWeeklyReport(startDate: Date, selectedUser: string) {
     const client = await clientPromise;
     const db = client.db("employee_monitor");
 
@@ -24,8 +24,6 @@ async function getWeeklyReport(startDate: Date) {
     const fetchEnd = new Date(start);
     fetchEnd.setDate(fetchEnd.getDate() + 8); // 7 days + 1 buffer
 
-    // 1. Fetch all auto logs for both users in this range
-    const users = ['sourabh'];
     const dailyStats: { [key: string]: DailyStat } = {};
 
     // Initialize days
@@ -35,27 +33,25 @@ async function getWeeklyReport(startDate: Date) {
         // Use 'en-CA' (YYYY-MM-DD) with local time to avoid UTC shift
         const dateStr = d.toLocaleDateString('en-CA');
         const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
-        dailyStats[dateStr] = { date: dateStr, dayName, sourabh: 0 };
+        dailyStats[dateStr] = { date: dateStr, dayName, totalTime: 0 };
     }
 
-    for (const user of users) {
-        const collectionName = `logs_${user}`;
+    const collectionName = `logs_${selectedUser.toLowerCase()}`;
 
-        const logs = await db.collection(collectionName).find({
-            timestamp: { $gte: fetchStart, $lt: fetchEnd },
-            type: 'auto'
-        }).project({ timestamp: 1 }).toArray();
+    const logs = await db.collection(collectionName).find({
+        timestamp: { $gte: fetchStart, $lt: fetchEnd },
+        type: 'auto'
+    }).project({ timestamp: 1 }).toArray();
 
-        logs.forEach(log => {
-            const date = new Date(log.timestamp);
-            // Construct IST YYYY-MM-DD reliably
-            const istDateStr = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    logs.forEach(log => {
+        const date = new Date(log.timestamp);
+        // Construct IST YYYY-MM-DD reliably
+        const istDateStr = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
-            if (dailyStats[istDateStr]) {
-                if (user === 'sourabh') dailyStats[istDateStr].sourabh += 600;
-            }
-        });
-    }
+        if (dailyStats[istDateStr]) {
+            dailyStats[istDateStr].totalTime += 600;
+        }
+    });
 
     return Object.values(dailyStats).sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -67,9 +63,20 @@ function formatDuration(seconds: number) {
 }
 
 import DownloadReportButton from "../components/DownloadReportButton";
+import { cookies } from "next/headers";
 
-export default async function ReportPage(props: { searchParams: Promise<{ date?: string }> }) {
+export default async function ReportPage(props: { searchParams: Promise<{ date?: string, user?: string }> }) {
+    const cookieStore = await cookies();
+    const isAdmin = cookieStore.has('admin_session');
+    const isSourabh = cookieStore.has('sourabh_session');
+
     const searchParams = await props.searchParams;
+    let selectedUser = searchParams.user || (isAdmin ? 'sourabh' : (isSourabh ? 'sourabh' : 'prayash'));
+    
+    if (!isAdmin) {
+        selectedUser = isSourabh ? 'sourabh' : 'prayash';
+    }
+
     const dateParam = searchParams.date || new Date().toISOString().split('T')[0];
     const currentDate = new Date(dateParam);
 
@@ -80,9 +87,9 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
     startOfWeek.setDate(diff);
     startOfWeek.setHours(0, 0, 0, 0);
 
-    const stats = await getWeeklyReport(startOfWeek);
+    const stats = await getWeeklyReport(startOfWeek, selectedUser);
 
-    const totalSourabh = stats.reduce((acc, curr) => acc + curr.sourabh, 0);
+    const totalTimeWeek = stats.reduce((acc, curr) => acc + curr.totalTime, 0);
 
     // Navigation
     const getPrevWeek = () => {
@@ -116,9 +123,9 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                     </div>
 
                     <div className="flex items-center gap-4 w-full md:w-auto justify-end">
-                        <DownloadReportButton stats={stats} startDate={startDateStr} endDate={endDateStr} />
+                        <DownloadReportButton stats={stats} startDate={startDateStr} endDate={endDateStr} selectedUser={selectedUser} />
                         <div className="text-sm text-gray-400">
-                            Signed in as <span className="text-white font-medium">admin</span>
+                            Signed in as <span className="text-white font-medium">{isAdmin ? 'admin' : (isSourabh ? 'sourabh' : 'prayash')}</span>
                         </div>
                     </div>
                 </div>
@@ -137,10 +144,10 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                     </div>
 
                     <div className="flex items-center gap-2 w-full md:w-auto justify-center">
-                        <Link href={`/report?date=${getPrevWeek()}`} className="px-4 py-2 bg-[#1e1e1e] border border-[#333] rounded hover:border-gray-500 transition-colors">
+                        <Link href={`/report?user=${selectedUser}&date=${getPrevWeek()}`} className="px-4 py-2 bg-[#1e1e1e] border border-[#333] rounded hover:border-gray-500 transition-colors">
                             Previous Week
                         </Link>
-                        <Link href={`/report?date=${getNextWeek()}`} className="px-4 py-2 bg-[#1e1e1e] border border-[#333] rounded hover:border-gray-500 transition-colors">
+                        <Link href={`/report?user=${selectedUser}&date=${getNextWeek()}`} className="px-4 py-2 bg-[#1e1e1e] border border-[#333] rounded hover:border-gray-500 transition-colors">
                             Next Week
                         </Link>
                     </div>
@@ -153,14 +160,14 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                             <tr>
                                 <th className="px-6 py-4 text-sm font-medium text-gray-400 whitespace-nowrap">Date</th>
                                 <th className="px-6 py-4 text-sm font-medium text-gray-400 whitespace-nowrap">Day</th>
-                                <th className="px-6 py-4 text-sm font-medium text-[#14a800] whitespace-nowrap">Sourabh</th>
+                                <th className="px-6 py-4 text-sm font-medium text-[#14a800] whitespace-nowrap capitalize">{selectedUser}</th>
                                 <th className="px-6 py-4 text-sm font-medium text-white text-right whitespace-nowrap">Daily Total</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[#333]">
                             {stats.map((day) => {
                                 // Earned logic ($5/hr)
-                                const sourabhEarned = (day.sourabh / 3600) * 5;
+                                const userEarned = (day.totalTime / 3600) * 5;
                                 return (
                                     <tr key={day.date} className="hover:bg-[#252525] transition-colors">
                                         <td className="px-6 py-4 text-white font-medium whitespace-nowrap">
@@ -168,11 +175,13 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                                         </td>
                                         <td className="px-6 py-4 text-gray-400 whitespace-nowrap">{day.dayName}</td>
                                         <td className="px-6 py-4 font-mono text-lg text-white whitespace-nowrap">
-                                            <div>{formatDuration(day.sourabh)}</div>
-                                            <div className="text-xs text-green-500 font-bold">${sourabhEarned.toFixed(2)}</div>
+                                            <div>{formatDuration(day.totalTime)}</div>
+                                            {selectedUser === 'sourabh' && (
+                                                <div className="text-xs text-green-500 font-bold">${userEarned.toFixed(2)}</div>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 font-mono text-lg text-white text-right font-bold whitespace-nowrap">
-                                            {formatDuration(day.sourabh)}
+                                            {formatDuration(day.totalTime)}
                                         </td>
                                     </tr>
                                 )
@@ -184,12 +193,14 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                                     Weekly Totals
                                 </td>
                                 <td className="px-6 py-4 font-bold text-xl text-[#14a800] whitespace-nowrap">
-                                    {formatDuration(totalSourabh)}
-                                    <div className="text-sm font-bold text-green-500">${((totalSourabh / 3600) * 5).toFixed(2)}</div>
+                                    {formatDuration(totalTimeWeek)}
+                                    {selectedUser === 'sourabh' && (
+                                        <div className="text-sm font-bold text-green-500">${((totalTimeWeek / 3600) * 5).toFixed(2)}</div>
+                                    )}
                                     <span className="text-xs font-normal text-gray-500 block">of 60h</span>
                                 </td>
                                 <td className="px-6 py-4 font-bold text-xl text-white text-right whitespace-nowrap">
-                                    {formatDuration(totalSourabh)}
+                                    {formatDuration(totalTimeWeek)}
                                 </td>
                             </tr>
                         </tfoot>
