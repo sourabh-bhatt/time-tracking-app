@@ -6,13 +6,10 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { username, password } = body;
 
-        if (username === 'admin' && password === 'Admin@123') {
-            // Valid credentials
-            // Set a session cookie
-            const response = NextResponse.json({ success: true });
+        const userLower = username.toLowerCase();
 
-            // Set cookie using next/headers or directly on response
-            // Note: In API routes with NextResponse, setting cookies on response is standard
+        if (userLower === 'admin' && password === 'Admin@881427') {
+            const response = NextResponse.json({ success: true });
             response.cookies.set('admin_session', 'true', {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
@@ -20,7 +17,18 @@ export async function POST(request: Request) {
                 maxAge: 60 * 60 * 24 * 7, // 1 week
                 path: '/',
             });
+            return response;
+        }
 
+        if (userLower === 'prayash' && password === 'Prayash@123') {
+            const response = NextResponse.json({ success: true, redirect: '/?user=prayash' });
+            response.cookies.set('prayash_session', 'true', {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                maxAge: 60 * 60 * 24 * 7, // 1 week
+                path: '/',
+            });
             return response;
         }
 

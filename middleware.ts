@@ -2,30 +2,40 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-    const path = request.nextUrl.pathname;
+    const url = request.nextUrl;
+    const path = url.pathname;
+    const userParam = url.searchParams.get('user');
 
     // Define public paths that don't need authentication
-    const isPublicPath = path === '/login' || path.startsWith('/diary') || path.startsWith('/api/');
+    const isPublicPath = path === '/login' || path.startsWith('/api/');
 
-    // Actually, wait, Electron doesn't use this Admin API for anything other than maybe checking something? 
-    // Electron connects to MongoDB directly.
-    // The Admin panel connects to MongoDB directly.
-    // So we just need to protect the UI.
+    const adminToken = request.cookies.get('admin_session')?.value;
+    const prayashToken = request.cookies.get('prayash_session')?.value;
 
-    const token = request.cookies.get('admin_session')?.value || '';
+    const hasAnyToken = adminToken || prayashToken;
 
-    // If trying to access a protected path without a token
-    if (!isPublicPath && !token) {
-        // Exclude /api/login from protection loop (it is public implicitly if we don't block it here, but let's be safe)
-        if (path === '/api/login') return NextResponse.next();
-
-        // Redirect to login
+    // Unauthenticated access attempt to protected path
+    if (!isPublicPath && !hasAnyToken) {
         return NextResponse.redirect(new URL('/login', request.url));
     }
 
-    // If trying to access login page WITH a token, redirect to dashboard
-    if (path === '/login' && token) {
-        return NextResponse.redirect(new URL('/', request.url));
+    // Role-based access control for dashboard / diary
+    if (!isPublicPath) {
+        // If Prayash tries to access anything other than his own user param, force redirect
+        if (prayashToken && !adminToken) {
+            if (userParam !== 'prayash') {
+                return NextResponse.redirect(new URL('?user=prayash', request.url));
+            }
+        }
+    }
+
+    // If trying to access login page WITH a token, redirect to appropriate dashboard
+    if (path === '/login' && hasAnyToken) {
+        if (adminToken) {
+            return NextResponse.redirect(new URL('/', request.url));
+        } else {
+            return NextResponse.redirect(new URL('/?user=prayash', request.url));
+        }
     }
 
     return NextResponse.next();

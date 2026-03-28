@@ -49,6 +49,7 @@ function createWindow() {
     mainWindow.loadFile('index.html');
 
     mainWindow.once('ready-to-show', () => {
+        mainWindow.webContents.send('set-env-user', process.env.USER_ID || 'sourabh');
         mainWindow.show();
     });
 

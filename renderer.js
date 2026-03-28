@@ -33,8 +33,29 @@ todayDayDisplay.textContent = days[new Date().getDay()];
 
 // Login Logic
 let currentUser = 'sourabh'; // Default fallback
+let envUser = 'sourabh';
 
-// Login Logic
+// Listen for environment user from main process
+ipcRenderer.on('set-env-user', (event, userId) => {
+    envUser = userId.toLowerCase();
+    
+    const btnContainer = document.getElementById('user-select-buttons');
+    if (envUser === 'prayash') {
+        btnContainer.innerHTML = `
+            <button class="btn user-btn" onclick="login('prayash')" style="background-color: #2c2c2c; width: 200px;">
+                <i class="fas fa-user-circle" style="margin-right: 10px;"></i> Prayash
+            </button>
+        `;
+    } else {
+        btnContainer.innerHTML = `
+            <button class="btn user-btn" onclick="login('sourabh')" style="width: 200px;">
+                <i class="fas fa-user-circle" style="margin-right: 10px;"></i> Admin
+            </button>
+        `;
+    }
+});
+
+// Login wrapper from button
 window.login = (userId) => {
     currentUser = userId; // Store for link
     ipcRenderer.send('user-login', userId);

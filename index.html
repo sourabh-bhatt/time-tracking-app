@@ -10,13 +10,10 @@
 </head>
 
 <body>
-    <!-- Login View -->
-    <div id="login-container" class="container login-view">
-        <h2 style="margin-bottom: 40px;">Who is logging in?</h2>
-        <div class="user-select-buttons">
-            <button class="btn user-btn" onclick="login('sourabh')">
-                <i class="fas fa-user-circle" style="margin-right: 10px;"></i> Sourabh
-            </button>
+    <div id="login-container" class="container login-view" style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <h2 style="margin-bottom: 40px;" id="login-header">Who is logging in?</h2>
+        <div id="user-select-buttons" class="user-select-buttons" style="display: flex; flex-direction: column; gap: 15px;">
+            <!-- Buttons dynamically populated by renderer.js -->
         </div>
     </div>
 

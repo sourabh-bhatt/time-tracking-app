@@ -57,9 +57,14 @@ async function getLogs(userId: string, date: Date): Promise<LogEntry[]> {
   }));
 }
 
+import { cookies } from "next/headers";
+
 export default async function Home(props: { searchParams: Promise<{ user?: string, date?: string }> }) {
+  const cookieStore = await cookies();
+  const isAdmin = cookieStore.has('admin_session');
+  
   const searchParams = await props.searchParams;
-  const selectedUser = searchParams.user || 'sourabh';
+  const selectedUser = searchParams.user || (isAdmin ? 'sourabh' : 'prayash');
   const selectedDateStr = searchParams.date || new Date().toISOString().split('T')[0];
   const selectedDate = new Date(selectedDateStr);
 
@@ -171,7 +176,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
 
             {/* User Selector */}
             <div className="flex bg-[#2a2a2a] rounded-lg p-1 w-full md:w-auto justify-center">
-              {['sourabh'].map((user) => (
+              {(isAdmin ? ['sourabh', 'prayash'] : ['prayash']).map((user) => (
                 <Link
                   key={user}
                   href={`/?user=${user}&date=${selectedDateStr}`}
