@@ -11,8 +11,9 @@ export function middleware(request: NextRequest) {
 
     const adminToken = request.cookies.get('admin_session')?.value;
     const prayashToken = request.cookies.get('prayash_session')?.value;
+    const sourabhToken = request.cookies.get('sourabh_session')?.value;
 
-    const hasAnyToken = adminToken || prayashToken;
+    const hasAnyToken = adminToken || prayashToken || sourabhToken;
 
     // Unauthenticated access attempt to protected path
     if (!isPublicPath && !hasAnyToken) {
@@ -24,7 +25,13 @@ export function middleware(request: NextRequest) {
         // If Prayash tries to access anything other than his own user param, force redirect
         if (prayashToken && !adminToken) {
             if (userParam !== 'prayash') {
-                return NextResponse.redirect(new URL('?user=prayash', request.url));
+                return NextResponse.redirect(new URL('/?user=prayash', request.url));
+            }
+        }
+        // If Sourabh tries to access anything other than his own user param, force redirect
+        if (sourabhToken && !adminToken) {
+            if (userParam !== 'sourabh') {
+                return NextResponse.redirect(new URL('/?user=sourabh', request.url));
             }
         }
     }
@@ -33,6 +40,8 @@ export function middleware(request: NextRequest) {
     if (path === '/login' && hasAnyToken) {
         if (adminToken) {
             return NextResponse.redirect(new URL('/', request.url));
+        } else if (sourabhToken) {
+            return NextResponse.redirect(new URL('/?user=sourabh', request.url));
         } else {
             return NextResponse.redirect(new URL('/?user=prayash', request.url));
         }
