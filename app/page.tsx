@@ -1,8 +1,18 @@
-import clientPromise from "../lib/mongodb";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import ImageModal from "./components/ImageModal";
 import EarningsEditor from "./components/EarningsEditor";
 import { getManualEarnings, syncWeeklyReport } from "./actions";
+import {
+  TRACKING_INTERVAL_SECONDS,
+  addDays,
+  getAllTimeAutoCount,
+  getLatestLogDate,
+  getWeekStartDateKey,
+  listLogsForDate,
+  listLogsForDateRange,
+  toDateParts,
+} from "../lib/s3-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -15,127 +25,56 @@ interface Activity {
 interface LogEntry {
   _id: string;
   userId: string;
-  timestamp: Date;
+  timestamp: string;
   activity: Activity;
   memo?: string;
   type?: string;
+  dateKey: string;
 }
 
-// Fetch logs from DB
-async function getLogs(userId: string, date: Date): Promise<LogEntry[]> {
-  const client = await clientPromise;
-  const db = client.db("employee_monitor");
-
-  const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
-
-  const endOfDay = new Date(date);
-  endOfDay.setHours(23, 59, 59, 999);
-
-  // Query user-specific collection
-  const collectionName = `logs_${userId.toLowerCase()}`;
-  const logs = await db
-    .collection(collectionName)
-    .find({
-      userId: userId,
-      timestamp: {
-        $gte: startOfDay,
-        $lte: endOfDay
-      }
-    })
-    .project({ image: 0 }) // Exclude image for list view
-    .sort({ timestamp: 1 })
-    .toArray();
-
-  return logs.map((log) => ({
-    _id: log._id.toString(),
-    userId: log.userId,
-    timestamp: log.timestamp,
-    activity: log.activity,
-    memo: log.memo || '',
-    type: log.type || 'auto' // Default legacy to auto
-  }));
+function countAutoLogs(logs: LogEntry[]) {
+  return logs.filter((log) => !log.type || log.type === "auto").length;
 }
 
-import { cookies } from "next/headers";
-
-export default async function Home(props: { searchParams: Promise<{ user?: string, date?: string }> }) {
+export default async function Home(props: { searchParams: Promise<{ user?: string; date?: string }> }) {
   const cookieStore = await cookies();
-  const isAdmin = cookieStore.has('admin_session');
-  const isSourabh = cookieStore.has('sourabh_session');
-  
+  const isAdmin = cookieStore.has("admin_session");
+  const isSourabh = cookieStore.has("sourabh_session");
+
   const searchParams = await props.searchParams;
-  let selectedUser = searchParams.user || (isAdmin ? 'sourabh' : (isSourabh ? 'sourabh' : 'prayash'));
-  
-  // Protect data access
+  let selectedUser = searchParams.user || (isAdmin ? "sourabh" : (isSourabh ? "sourabh" : "prayash"));
+
   if (!isAdmin) {
-    selectedUser = isSourabh ? 'sourabh' : 'prayash';
+    selectedUser = isSourabh ? "sourabh" : "prayash";
   }
 
-  const selectedDateStr = searchParams.date || new Date().toISOString().split('T')[0];
-  const selectedDate = new Date(selectedDateStr);
+  const requestedDateStr = searchParams.date || toDateParts(new Date()).dateKey;
+  const latestLogDate = await getLatestLogDate(selectedUser);
+  const selectedDateStr = searchParams.date || latestLogDate || requestedDateStr;
+  const selectedDate = new Date(`${selectedDateStr}T00:00:00.000Z`);
 
-  const logs = await getLogs(selectedUser, selectedDate);
-
-  // Helper to fetch weekly logs
-  const getWeeklyLogs = async (userId: string, date: Date) => {
-    const client = await clientPromise;
-    const db = client.db("employee_monitor");
-    const collectionName = `logs_${userId.toLowerCase()}`;
-
-    // Start of week (Monday)
-    const weekStart = new Date(date);
-    const day = weekStart.getDay();
-    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
-    weekStart.setDate(diff);
-    weekStart.setHours(0, 0, 0, 0);
-
-    const count = await db.collection(collectionName).countDocuments({
-      userId: userId,
-      timestamp: { $gte: weekStart },
-      type: 'auto' // Only count auto logs for time
-    });
-
-    return count;
-  };
-
-  // Helper to fetch all-time logs
-  const getAllTimeEarnings = async (userId: string) => {
-    const client = await clientPromise;
-    const db = client.db("employee_monitor");
-    const collectionName = `logs_${userId.toLowerCase()}`;
-
-    const count = await db.collection(collectionName).countDocuments({
-      userId: userId,
-      type: 'auto' // Only count auto logs for time
-    });
-
-    return count;
-  };
-
-  const weeklyCount = await getWeeklyLogs(selectedUser, selectedDate);
-  const weeklySeconds = weeklyCount * 600;
+  const logs = await listLogsForDate(selectedUser, selectedDateStr) as LogEntry[];
+  const weekStartKey = getWeekStartDateKey(selectedDateStr);
+  const weekLogs = await listLogsForDateRange(selectedUser, weekStartKey, selectedDateStr) as LogEntry[];
+  const weeklyCount = countAutoLogs(weekLogs);
+  const weeklySeconds = weeklyCount * TRACKING_INTERVAL_SECONDS;
   const weeklyHours = Math.floor(weeklySeconds / 3600);
   const weeklyMinutes = Math.floor((weeklySeconds % 3600) / 60);
 
-  const allTimeCount = await getAllTimeEarnings(selectedUser);
-  const allTimeSeconds = allTimeCount * 600;
-  // const allTimeHours = Math.floor(allTimeSeconds / 3600); // Unused for now if we just show $
-  const allTimeEarnings = (allTimeSeconds / 3600) * 5; // $5/hr rate
+  const allTimeCount = await getAllTimeAutoCount(selectedUser);
+  const allTimeSeconds = allTimeCount * TRACKING_INTERVAL_SECONDS;
+  const allTimeEarnings = (allTimeSeconds / 3600) * 5;
 
-  // Helper to get IST Hour
   const getISTHour = (date: Date) => {
-    const d = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const d = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
     return d.getHours();
   };
 
-  // Group logs by hour and memo
-  // Structure: { [hour]: { [memo]: LogEntry[] } }
   const logsByHourAndMemo: { [key: number]: { [key: string]: LogEntry[] } } = {};
 
-  logs.forEach(log => {
+  logs.forEach((log) => {
     const hour = getISTHour(new Date(log.timestamp));
-    const memo = log.memo || 'No Memo';
+    const memo = log.memo || "No Memo";
 
     if (!logsByHourAndMemo[hour]) logsByHourAndMemo[hour] = {};
     if (!logsByHourAndMemo[hour][memo]) logsByHourAndMemo[hour][memo] = [];
@@ -143,53 +82,38 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
     logsByHourAndMemo[hour][memo].push(log);
   });
 
-  // Calculate stats
-  // Filter out 'start'/'stop' logs (which have 0 duration credit)
-  const autoLogs = logs.filter(l => !l.type || l.type === 'auto');
-  const totalSeconds = autoLogs.length * 600;
+  const autoLogs = logs.filter((log) => !log.type || log.type === "auto");
+  const totalSeconds = autoLogs.length * TRACKING_INTERVAL_SECONDS;
   const totalHours = Math.floor(totalSeconds / 3600);
   const totalMinutes = Math.floor((totalSeconds % 3600) / 60);
 
-  // Earnings
   const hourlyRate = 5;
   const totalEarnings = (totalSeconds / 3600) * hourlyRate;
   const weeklyEarnings = (weeklySeconds / 3600) * hourlyRate;
 
-  // Calculate total tracked time per hour for timeline (in IST)
-  const loggedHours = logs.map(l => getISTHour(new Date(l.timestamp)));
+  const loggedHours = logs.map((log) => getISTHour(new Date(log.timestamp)));
   const trackedHours = new Set(loggedHours);
 
-  const getPrevDate = () => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().split('T')[0];
-  };
-
-  const getNextDate = () => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
-  };
+  const getPrevDate = () => addDays(selectedDateStr, -1);
+  const getNextDate = () => addDays(selectedDateStr, 1);
 
   const manualEarningsData = await getManualEarnings(selectedUser);
 
   return (
     <div className="min-h-screen bg-[#121212] text-gray-300 font-sans">
-      {/* Header */}
       <header className="bg-[#1e1e1e] border-b border-[#333] px-4 md:px-6 py-4 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 md:gap-0">
           <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6 w-full md:w-auto">
             <h1 className="text-2xl font-bold text-white">Work diary</h1>
 
-            {/* User Selector */}
             <div className="flex bg-[#2a2a2a] rounded-lg p-1 w-full md:w-auto justify-center">
-              {(isAdmin ? ['sourabh', 'prayash'] : [selectedUser]).map((user) => (
+              {(isAdmin ? ["sourabh", "prayash"] : [selectedUser]).map((user) => (
                 <Link
                   key={user}
                   href={`/?user=${user}&date=${selectedDateStr}`}
                   className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors flex-1 md:flex-initial text-center ${selectedUser === user
-                    ? 'bg-[#333] text-white shadow-sm'
-                    : 'text-gray-400 hover:text-white'
+                    ? "bg-[#333] text-white shadow-sm"
+                    : "text-gray-400 hover:text-white"
                     }`}
                 >
                   {user}
@@ -218,17 +142,16 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
       </header>
 
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
-        {/* Date Navigation & Stats */}
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-[#1e1e1e] p-4 rounded-xl border border-[#333] gap-6 md:gap-0">
           <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto justify-center">
             <div className="flex items-center bg-[#2a2a2a] rounded-md border border-[#333] px-3 py-2">
               <Link href={`/?user=${selectedUser}&date=${getPrevDate()}`} className="text-gray-400 hover:text-white px-2">‹</Link>
               <span className="text-white font-medium mx-2">
-                {selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                {selectedDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "Asia/Kolkata" })}
               </span>
               <Link href={`/?user=${selectedUser}&date=${getNextDate()}`} className="text-gray-400 hover:text-white px-2">›</Link>
             </div>
-            <Link href={`/?user=${selectedUser}&date=${new Date().toISOString().split('T')[0]}`} className="text-[#14a800] text-sm font-medium hover:underline">
+            <Link href={`/?user=${selectedUser}&date=${toDateParts(new Date()).dateKey}`} className="text-[#14a800] text-sm font-medium hover:underline">
               Today
             </Link>
           </div>
@@ -237,9 +160,9 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
             <div className="flex items-center gap-6">
               <div className="flex flex-col items-center sm:items-end">
                 <span className="text-2xl font-bold text-white transition-all hover:text-[#14a800]">
-                  {totalHours}:{totalMinutes.toString().padStart(2, '0')} hrs
+                  {totalHours}:{totalMinutes.toString().padStart(2, "0")} hrs
                 </span>
-                {selectedUser === 'sourabh' && (
+                {selectedUser === "sourabh" && (
                   <span className="text-xs text-green-500 font-medium">${totalEarnings.toFixed(2)}</span>
                 )}
                 <span className="text-[10px] text-gray-400">Today</span>
@@ -249,15 +172,15 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
 
               <div className="flex flex-col items-center sm:items-end">
                 <span className="text-xl font-bold text-white transition-all hover:text-[#14a800]">
-                  {weeklyHours}:{weeklyMinutes.toString().padStart(2, '0')} <span className="text-sm font-normal text-gray-500">of 60 hrs</span>
+                  {weeklyHours}:{weeklyMinutes.toString().padStart(2, "0")} <span className="text-sm font-normal text-gray-500">of 60 hrs</span>
                 </span>
-                {selectedUser === 'sourabh' && (
+                {selectedUser === "sourabh" && (
                   <span className="text-xs text-green-500 font-medium">${weeklyEarnings.toFixed(2)}</span>
                 )}
                 <span className="text-[10px] text-gray-400">This Week</span>
               </div>
 
-              {selectedUser === 'sourabh' && (
+              {selectedUser === "sourabh" && (
                 <>
                   <div className="h-8 w-[1px] bg-[#333]"></div>
 
@@ -271,7 +194,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
               )}
             </div>
 
-            {selectedUser === 'sourabh' && (
+            {selectedUser === "sourabh" && (
               <div className="flex flex-col items-end gap-2 sm:ml-4 sm:border-l border-[#333] pl-0 sm:pl-4">
                 <EarningsEditor userId={selectedUser} initialData={manualEarningsData} />
                 <div className="flex gap-4 text-sm justify-center">
@@ -284,23 +207,21 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
           </div>
         </div>
 
-        {/* Timeline View */}
         <div className="mb-8 overflow-x-auto">
           <div className="flex min-w-[800px] border-b border-[#333] pb-2">
             {Array.from({ length: 24 }).map((_, i) => {
               const isTracked = trackedHours.has(i);
               return (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                  <div className={`w-full h-3 ${isTracked ? 'bg-[#14a800]' : 'bg-[#2a2a2a]'} rounded-sm`}></div>
-                  <div className={`w-full h-3 ${isTracked ? 'bg-[#14a800]' : 'bg-[#2a2a2a]'} rounded-sm`}></div>
-                  <span className="text-[10px] text-gray-500">{i === 0 ? '12 am' : i === 12 ? '12 pm' : i > 12 ? `${i - 12} pm` : `${i} am`}</span>
+                  <div className={`w-full h-3 ${isTracked ? "bg-[#14a800]" : "bg-[#2a2a2a]"} rounded-sm`}></div>
+                  <div className={`w-full h-3 ${isTracked ? "bg-[#14a800]" : "bg-[#2a2a2a]"} rounded-sm`}></div>
+                  <span className="text-[10px] text-gray-500">{i === 0 ? "12 am" : i === 12 ? "12 pm" : i > 12 ? `${i - 12} pm` : `${i} am`}</span>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Screenshots Grid */}
         <div className="space-y-8">
           {Object.keys(logsByHourAndMemo).length === 0 ? (
             <div className="text-center py-20 bg-[#1e1e1e] rounded-xl border border-dashed border-[#333]">
@@ -311,17 +232,15 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
               <div key={hour} className="space-y-4">
                 {Object.entries(memos).map(([memo, memoLogs]) => (
                   <div key={`${hour}-${memo}`} className="bg-[#1e1e1e] rounded-xl border border-[#333] overflow-hidden">
-                    {/* Group Header */}
                     <div className="px-6 py-3 border-b border-[#333] bg-[#252525] flex justify-between items-center">
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-[#14a800]"></div>
                         <h3 className="font-medium text-white">
-                          {new Date(memoLogs[0].timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' })}
-                          {' - '}
-                          {new Date(memoLogs[memoLogs.length - 1].timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' })}
-                          {/* Each log is 10 mins, but only count 'auto' logs */}
+                          {new Date(memoLogs[0].timestamp).toLocaleTimeString("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })}
+                          {" - "}
+                          {new Date(memoLogs[memoLogs.length - 1].timestamp).toLocaleTimeString("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })}
                           <span className="text-gray-400 font-normal ml-2">
-                            ({memoLogs.filter(l => !l.type || l.type === 'auto').length * 10} mins)
+                            ({memoLogs.filter((log) => !log.type || log.type === "auto").length * 10} mins)
                           </span>
                         </h3>
                       </div>
@@ -329,14 +248,8 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                       <button className="text-gray-500 hover:text-white">...</button>
                     </div>
 
-                    {/* Grid */}
                     <div className="p-4 md:p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                       {memoLogs.map((log) => {
-                        // Max score 10. Normal usage ~1 activity/sec => 600/10mins. 
-                        // So divide by 60 to get a score out of 10 for normal intense activity? 
-                        // Or just simplistic divide by 10 like before? Before it was 10s => /10 was 1.0 logic.
-                        // Now 600s. If I do /10 it will be huge. 
-                        // Let's divide by 60.
                         const activityScore = Math.min((log.activity.keyPresses + log.activity.mouseClicks + log.activity.mouseMoves) / 60, 10);
 
                         return (
@@ -348,7 +261,6 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                               id={log._id}
                             >
                               <div className="aspect-video bg-[#121212] rounded-md overflow-hidden border border-[#333] relative cursor-pointer hover:ring-2 ring-[#14a800] transition-all">
-                                {/* Lazy load image via API */}
                                 <img
                                   src={`/api/image/${log._id}`}
                                   alt="Screen"
@@ -361,13 +273,13 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                                   <div>Clicks: {log.activity.mouseClicks}</div>
                                   <div className="mt-1 text-[10px] text-gray-300 flex flex-col gap-1">
                                     <div>
-                                      EST: {new Date(log.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' })}
+                                      EST: {new Date(log.timestamp).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" })}
                                     </div>
                                     <div>
-                                      IST: {new Date(log.timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' })}
+                                      IST: {new Date(log.timestamp).toLocaleTimeString("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })}
                                     </div>
                                     <div>
-                                      NPT: {new Date(log.timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kathmandu', hour: 'numeric', minute: '2-digit' })}
+                                      NPT: {new Date(log.timestamp).toLocaleTimeString("en-US", { timeZone: "Asia/Kathmandu", hour: "numeric", minute: "2-digit" })}
                                     </div>
                                   </div>
                                 </div>
@@ -377,11 +289,11 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                             <div className="mt-2 space-y-1">
                               <div className="flex gap-[2px] h-1.5">
                                 {[...Array(10)].map((_, i) => (
-                                  <div key={i} className={`flex-1 rounded-full ${i < activityScore ? 'bg-[#14a800]' : 'bg-[#333]'}`} />
+                                  <div key={i} className={`flex-1 rounded-full ${i < activityScore ? "bg-[#14a800]" : "bg-[#333]"}`} />
                                 ))}
                               </div>
                               <div className="flex justify-between text-[10px] text-gray-500">
-                                <span>{new Date(log.timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' })}</span>
+                                <span>{new Date(log.timestamp).toLocaleTimeString("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })}</span>
                               </div>
                             </div>
                           </div>

@@ -10,12 +10,14 @@
     "start:next": "next start",
     "start": "electron .",
     "build:electron": "electron-builder",
-    "lint": "eslint"
+    "lint": "eslint",
+    "migrate:s3": "node scripts/migrate-mongo-to-s3.js"
   },
   "keywords": [],
   "author": "Beyond Billions",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1024.0",
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "googleapis": "^169.0.0",

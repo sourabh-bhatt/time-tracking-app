@@ -18,7 +18,7 @@ export async function getSheetsClient() {
     return google.sheets({ version: 'v4', auth });
 }
 
-export async function updateWeeklyReport(rows: any[][]) {
+export async function updateWeeklyReport(rows: Array<Array<string | number>>) {
     const sheets = await getSheetsClient();
 
     // Fetch spreadsheet metadata to get the actual sheet title
