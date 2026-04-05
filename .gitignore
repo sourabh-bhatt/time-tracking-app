@@ -13,6 +13,8 @@
 # electron builder output
 /dist
 dist/
+/portable-dist
+portable-dist/
 
 # testing
 /coverage

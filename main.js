@@ -30,8 +30,24 @@ const FALLBACK_PIXEL = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
     'base64',
 );
+let inputMonitoringReady = false;
+
+function writeStartupLog(message) {
+    try {
+        const baseDir = app.isReady()
+            ? app.getPath('userData')
+            : path.join(process.env.APPDATA || process.cwd(), 'employee-monitor');
+        fs.mkdirSync(baseDir, { recursive: true });
+        const logPath = path.join(baseDir, 'tracker_debug.log');
+        const timestamp = new Date().toISOString();
+        fs.appendFileSync(logPath, `[${timestamp}] ${message}\n`);
+    } catch (error) {
+        console.error('Failed to write startup log:', error);
+    }
+}
 
 function createWindow() {
+    writeStartupLog('Creating main window.');
     mainWindow = new BrowserWindow({
         width: 450,
         height: 700,
@@ -41,17 +57,29 @@ function createWindow() {
         },
         autoHideMenuBar: true,
         backgroundColor: '#121212',
-        show: false,
+        show: true,
     });
 
-    mainWindow.loadFile('index.html');
+    mainWindow.loadFile('index.html').catch((error) => {
+        writeStartupLog(`loadFile failed: ${error.message}`);
+    });
 
     mainWindow.once('ready-to-show', () => {
+        writeStartupLog('Main window ready to show.');
         mainWindow.webContents.send('set-env-user', process.env.USER_ID || 'sourabh');
         mainWindow.show();
     });
 
+    mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+        writeStartupLog(`Renderer failed to load: ${errorCode} ${errorDescription}`);
+    });
+
+    mainWindow.webContents.on('render-process-gone', (_event, details) => {
+        writeStartupLog(`Renderer process gone: ${JSON.stringify(details)}`);
+    });
+
     mainWindow.on('closed', () => {
+        writeStartupLog('Main window closed.');
         mainWindow = null;
     });
 }
@@ -74,6 +102,8 @@ function setupInputMonitoring() {
         if (isTracking) inputCounts.mouseMoves += 1;
     });
     uIOhook.start();
+    inputMonitoringReady = true;
+    writeStartupLog('Input monitoring started.');
 }
 
 // --- Stats Aggregation ---
@@ -127,9 +157,7 @@ async function fetchStats(userId) {
 
 // --- Screenshot & Logging Logic ---
 function logToFile(message) {
-    const logPath = path.join(app.getPath('userData'), 'tracker_debug.log');
-    const timestamp = new Date().toISOString();
-    fs.appendFileSync(logPath, `[${timestamp}] ${message}\n`);
+    writeStartupLog(message);
 }
 
 async function captureAndLog(type = 'auto') {
@@ -288,8 +316,15 @@ ipcMain.on('open-external', (event, url) => {
 });
 
 app.on('ready', async () => {
+    writeStartupLog('App ready event fired.');
     createWindow();
-    setupInputMonitoring();
+
+    try {
+        setupInputMonitoring();
+    } catch (error) {
+        writeStartupLog(`Input monitoring failed to start: ${error.message}`);
+        console.error('Input monitoring failed to start:', error);
+    }
 });
 
 app.on('window-all-closed', () => {
@@ -301,6 +336,16 @@ app.on('activate', () => {
 });
 
 app.on('will-quit', () => {
-    uIOhook.stop();
+    if (inputMonitoringReady) {
+        uIOhook.stop();
+    }
     if (intervalId) clearInterval(intervalId);
+});
+
+process.on('uncaughtException', (error) => {
+    writeStartupLog(`Uncaught exception: ${error.stack || error.message}`);
+});
+
+process.on('unhandledRejection', (error) => {
+    writeStartupLog(`Unhandled rejection: ${error?.stack || error?.message || error}`);
 });
