@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { ipcRenderer } = require('electron');
 
-// DOM Elements
 const loginContainer = document.getElementById('login-container');
 const mainContainer = document.getElementById('main-container');
 const toggleBtn = document.getElementById('toggleBtn');
@@ -14,8 +13,11 @@ const memoInput = document.getElementById('memoInput');
 const screenshotPreview = document.getElementById('screenshotPreview');
 const noPreviewMsg = document.getElementById('noPreviewMsg');
 const lastCaptureTime = document.getElementById('lastCaptureTime');
+const presenceBadge = document.getElementById('presenceBadge');
+const presenceLabel = document.getElementById('presenceLabel');
+const presenceMeta = document.getElementById('presenceMeta');
+const timeZoneHint = document.getElementById('timeZoneHint');
 
-// Earnings Modal Elements
 const earningsModal = document.getElementById('earnings-modal');
 const closeEarningsModal = document.getElementById('closeEarningsModal');
 const weeklyPaidInput = document.getElementById('weeklyPaidInput');
@@ -24,22 +26,152 @@ const totalPendingInput = document.getElementById('totalPendingInput');
 const saveEarningsBtn = document.getElementById('saveEarningsBtn');
 const usersSettingsIcon = document.querySelector('.settings-icon');
 
-let isTracking = false;
-let sessionInterval;
-let sessionSeconds = 0;
-
-// Set Today's Day Name
-const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-todayDayDisplay.textContent = days[new Date().getDay()];
-
-// Login Logic
-let currentUser = 'sourabh'; // Default fallback
+let currentUser = 'sourabh';
 let envUser = 'sourabh';
+let isTracking = false;
+let trackingTimeZone = 'America/New_York';
+let trackingTimeLabel = 'Eastern Time';
+let idleThresholdSeconds = 300;
 
-// Listen for environment user from main process
-ipcRenderer.on('set-env-user', (event, userId) => {
+function pad(num) {
+    return num.toString().padStart(2, '0');
+}
+
+function formatClock(totalSeconds) {
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+}
+
+function formatDurationShort(totalSeconds) {
+    if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+        return '0s';
+    }
+
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+
+    if (hrs > 0) {
+        return `${hrs}h ${mins}m`;
+    }
+
+    if (mins > 0) {
+        return `${mins}m ${secs}s`;
+    }
+
+    return `${secs}s`;
+}
+
+function formatTrackingTime(date, options = {}) {
+    return new Date(date).toLocaleTimeString('en-US', {
+        timeZone: trackingTimeZone,
+        hour: 'numeric',
+        minute: '2-digit',
+        ...options,
+    });
+}
+
+function getTimeZoneAbbreviation(date) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: trackingTimeZone,
+        timeZoneName: 'short',
+    }).formatToParts(new Date(date));
+
+    return parts.find((part) => part.type === 'timeZoneName')?.value || '';
+}
+
+function getTimeZoneOffsetLabel(date) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: trackingTimeZone,
+        timeZoneName: 'shortOffset',
+    }).formatToParts(new Date(date));
+    const raw = parts.find((part) => part.type === 'timeZoneName')?.value || '';
+    const normalized = raw.replace(/^GMT/, 'UTC');
+    const match = normalized.match(/^UTC([+-])(\d{1,2})(?::?(\d{2}))?$/);
+
+    if (!match) {
+        return normalized || 'UTC';
+    }
+
+    const [, sign, hours, minutes = '00'] = match;
+    return `UTC${sign === '-' ? '−' : '+'}${hours.padStart(2, '0')}:${minutes}`;
+}
+
+function getTimeZoneHintText(date = new Date()) {
+    const currentDate = new Date(date);
+    const timeText = currentDate.toLocaleTimeString('en-US', {
+        timeZone: trackingTimeZone,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    });
+
+    return `${timeText} ${trackingTimeLabel} ${getTimeZoneAbbreviation(currentDate)} · ${getTimeZoneOffsetLabel(currentDate)}`;
+}
+
+function updateTimeZoneHint(date = new Date()) {
+    timeZoneHint.textContent = getTimeZoneHintText(date);
+}
+
+function updateTodayLabel() {
+    todayDayDisplay.textContent = new Intl.DateTimeFormat('en-US', {
+        timeZone: trackingTimeZone,
+        weekday: 'short',
+    }).format(new Date());
+}
+
+function setPresenceTheme(theme) {
+    presenceBadge.classList.remove('presence-active', 'presence-idle', 'presence-offline', 'presence-paused');
+    presenceBadge.classList.add(theme);
+}
+
+function renderPresence(presence) {
+    isTracking = Boolean(presence.isTracking);
+    toggleBtn.checked = isTracking;
+    timerDisplay.textContent = formatClock(Number(presence.sessionWorkedSeconds || 0));
+
+    let nextLabel = 'Offline';
+    let nextMeta = `Waiting for ${trackingTimeLabel} heartbeat`;
+    let nextTheme = 'presence-offline';
+
+    if (presence.isOnline && !presence.isTracking) {
+        nextLabel = 'Tracker Off';
+        nextMeta = `Connected. Turn tracking on to start logging in ${trackingTimeLabel}.`;
+        nextTheme = 'presence-paused';
+    } else if (presence.isTracking && presence.isIdle) {
+        nextLabel = 'Idle';
+        nextMeta = `Idle for ${formatDurationShort(presence.idleDurationSeconds)}. Tracking stays on and screenshots continue.`;
+        nextTheme = 'presence-idle';
+    } else if (presence.isTracking) {
+        nextLabel = 'Active';
+        const trackingSince = presence.trackingStartedAt ? formatTrackingTime(presence.trackingStartedAt) : 'now';
+        nextMeta = `Active for ${formatDurationShort(presence.activeDurationSeconds)}. Tracking since ${trackingSince}.`;
+        nextTheme = 'presence-active';
+    }
+
+    presenceLabel.textContent = nextLabel;
+    presenceMeta.textContent = nextMeta;
+    setPresenceTheme(nextTheme);
+    updateTimeZoneHint();
+}
+
+function updateTimerDisplay(totalSeconds = 0) {
+    timerDisplay.textContent = formatClock(totalSeconds);
+}
+
+ipcRenderer.on('tracking-config', (_event, config) => {
+    trackingTimeZone = config.trackingTimeZone || trackingTimeZone;
+    trackingTimeLabel = config.trackingTimeLabel || trackingTimeLabel;
+    idleThresholdSeconds = Number(config.idleThresholdSeconds || idleThresholdSeconds);
+    updateTodayLabel();
+    updateTimeZoneHint();
+});
+
+ipcRenderer.on('set-env-user', (_event, userId) => {
     envUser = userId.toLowerCase();
-    
+
     const btnContainer = document.getElementById('user-select-buttons');
     if (envUser === 'prayash') {
         btnContainer.innerHTML = `
@@ -56,29 +188,24 @@ ipcRenderer.on('set-env-user', (event, userId) => {
     }
 });
 
-// Login wrapper from button
 window.login = (userId) => {
-    currentUser = userId; // Store for link
+    currentUser = userId;
     ipcRenderer.send('user-login', userId);
 };
 
 window.openDiary = () => {
-    // Open the Public Diary Route
     const url = `https://time-tracking-app-two-nu.vercel.app/diary?user=${currentUser}`;
     ipcRenderer.send('open-external', url);
 };
 
-// Initialize UI after login
-ipcRenderer.on('init-user', (event, userId) => {
+ipcRenderer.on('init-user', (_event, userId) => {
     currentUser = userId;
-    // Format Name: sourabh -> Sourabh Sourabh
     const formattedName = userId.charAt(0).toUpperCase() + userId.slice(1);
-    footerUserName.textContent = `${formattedName} ${formattedName}`; // Mockup style
+    footerUserName.textContent = `${formattedName} ${formattedName}`;
 
     loginContainer.style.display = 'none';
-    mainContainer.style.display = 'flex'; // Changed to flex for the column layout
+    mainContainer.style.display = 'flex';
 
-    // Hide earnings if Prayash
     const todayEarningsEl = document.getElementById('todayEarnings');
     const weekEarningsEl = document.getElementById('weekEarnings');
     const earningsToggleIcon = document.querySelector('.settings-icon');
@@ -94,72 +221,39 @@ ipcRenderer.on('init-user', (event, userId) => {
     }
 });
 
-// Toggle Tracking
-toggleBtn.addEventListener('change', (e) => {
-    if (e.target.checked) {
+toggleBtn.addEventListener('change', (event) => {
+    if (event.target.checked) {
         startTracking();
     } else {
         stopTracking();
     }
 });
 
-// Memo Updates
 memoInput.addEventListener('change', () => {
     const memo = memoInput.value;
-    localStorage.setItem('lastMemo', memo); // Persist
+    localStorage.setItem('lastMemo', memo);
     ipcRenderer.send('update-memo', memo);
 });
 
-// Load saved memo
 const savedMemo = localStorage.getItem('lastMemo');
 if (savedMemo) {
     memoInput.value = savedMemo;
-    ipcRenderer.send('update-memo', savedMemo); // Sync immediately
+    ipcRenderer.send('update-memo', savedMemo);
 }
 
 function startTracking() {
-    isTracking = true;
-    sessionSeconds = 0;
-    updateTimerDisplay(); // Reset immediately
-
-    // Sync memo before starting
     ipcRenderer.send('update-memo', memoInput.value);
     ipcRenderer.send('start-tracking');
-
-    sessionInterval = setInterval(() => {
-        sessionSeconds++;
-        updateTimerDisplay();
-    }, 1000); // UI updates every second
 }
 
 function stopTracking() {
-    isTracking = false;
     ipcRenderer.send('stop-tracking');
-    clearInterval(sessionInterval);
-    sessionSeconds = 0;
-    updateTimerDisplay();
 }
 
-function updateTimerDisplay() {
-    const hrs = Math.floor(sessionSeconds / 3600);
-    const mins = Math.floor((sessionSeconds % 3600) / 60);
-    const secs = sessionSeconds % 60;
+ipcRenderer.on('update-stats', (_event, stats) => {
+    todayTotalDisplay.textContent = formatClock(stats.todaySeconds);
+    weekTotalDisplay.textContent = formatWeekHours(stats.weekSeconds);
 
-    // Format: HH:MM:SS
-    timerDisplay.innerHTML = `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
-}
-
-function pad(num) {
-    return num.toString().padStart(2, '0');
-}
-
-// Handle Stats Updates from Main (Today/Week totals)
-ipcRenderer.on('update-stats', (event, stats) => {
-    // stats = { todaySeconds, weekSeconds, todayEarnings, weekEarnings }
-    todayTotalDisplay.textContent = formatHrs(stats.todaySeconds);
-    weekTotalDisplay.textContent = formatDecimalHrs(stats.weekSeconds);
-
-    // Update Earnings if elements exist (will add to HTML next)
     const todayEarningsEl = document.getElementById('todayEarnings');
     const weekEarningsEl = document.getElementById('weekEarnings');
 
@@ -167,34 +261,24 @@ ipcRenderer.on('update-stats', (event, stats) => {
     if (weekEarningsEl) weekEarningsEl.textContent = `$${stats.weekEarnings.toFixed(2)}`;
 });
 
-// Handle Sound
-ipcRenderer.on('play-sound', () => {
-    const audio = new Audio('assets/shutter.mp3'); // We'll need to ensure this exists or use a base64 default
-    // Fallback if file doesn't exist: Simple beep or encoded sound
-    // Using a short base64 beep for reliability if file is missing
-    const beep = "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU"; // Very short/empty, replacing with real simple beep logic or just HTML5 default if available
-    // Better: Just use a system notification sound or standard UI sound. 
-    // For now, let's try a standard HTML5 beep if possible or just log it. 
-    // Actually, let's play a simple created tone or just use a placeholder file path and I'll create the file.
-    // I'll create a 'shutter.mp3' or 'notification.wav' in assets.
-
-    // Let's assume we will create 'notification.mp3' in a new assets folder.
-    const notificationAudio = new Audio('./assets/notification.mp3');
-    notificationAudio.volume = 0.5;
-    notificationAudio.play().catch(e => console.log('Audio play failed', e));
+ipcRenderer.on('presence-update', (_event, presence) => {
+    renderPresence(presence);
 });
 
-// Handle Earnings Data
-ipcRenderer.on('update-manual-earnings-data', (event, data) => {
+ipcRenderer.on('play-sound', () => {
+    const notificationAudio = new Audio('./assets/notification.mp3');
+    notificationAudio.volume = 0.5;
+    notificationAudio.play().catch((error) => console.log('Audio play failed', error));
+});
+
+ipcRenderer.on('update-manual-earnings-data', (_event, data) => {
     if (weeklyPaidInput) weeklyPaidInput.value = data.weeklyPaid;
     if (weeklyPendingInput) weeklyPendingInput.value = data.weeklyPending;
     if (totalPendingInput) totalPendingInput.value = data.totalPending;
 });
 
-// Earnings Modal Logic
 if (usersSettingsIcon) {
     usersSettingsIcon.addEventListener('click', () => {
-        // Request latest data when opening
         ipcRenderer.send('get-manual-earnings');
         earningsModal.style.display = 'block';
     });
@@ -207,55 +291,43 @@ if (closeEarningsModal) {
 }
 
 window.onclick = (event) => {
-    if (event.target == earningsModal) {
+    if (event.target === earningsModal) {
         earningsModal.style.display = 'none';
     }
 };
 
 if (saveEarningsBtn) {
     saveEarningsBtn.addEventListener('click', () => {
-        const data = {
+        ipcRenderer.send('update-manual-earnings', {
             weeklyPaid: weeklyPaidInput.value,
             weeklyPending: weeklyPendingInput.value,
-            totalPending: totalPendingInput.value
-        };
-        ipcRenderer.send('update-manual-earnings', data);
+            totalPending: totalPendingInput.value,
+        });
         earningsModal.style.display = 'none';
     });
 }
 
-// Handle Notification
-ipcRenderer.on('show-notification', (event, data) => {
-    const notification = new Notification(data.title, {
-        body: data.body
+ipcRenderer.on('show-notification', (_event, data) => {
+    new Notification(data.title, {
+        body: data.body,
     });
 });
 
-// Handle New Screenshot for Preview
-ipcRenderer.on('new-screenshot', (event, data) => {
+ipcRenderer.on('new-screenshot', (_event, data) => {
     screenshotPreview.src = data.image;
     screenshotPreview.style.display = 'block';
     noPreviewMsg.style.display = 'none';
 
-    // Update "15 hours ago" style text (Mock logic for now, just shows time)
-    const time = new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    lastCaptureTime.textContent = `Today at ${time}`;
+    const time = formatTrackingTime(data.timestamp, { hour: '2-digit', minute: '2-digit' });
+    lastCaptureTime.textContent = `Captured at ${time} ${trackingTimeLabel}`;
 });
 
-function formatHrs(totalSeconds) {
-    const hrs = Math.floor(totalSeconds / 3600);
-    const mins = Math.floor((totalSeconds % 3600) / 60);
-    const secs = totalSeconds % 60;
-    return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+function formatWeekHours(totalSeconds) {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    return `${hours}:${pad(minutes)}`;
 }
 
-function formatDecimalHrs(totalSeconds) {
-    const hrs = (totalSeconds / 3600).toFixed(2); // Example: 31.10
-    // Replace dot with colon if preferred, but Upwork uses decimal or HH:MM. 
-    // The screenshot shows "31:10 of 30", which looks like MM:SS or HH:MM. 
-    // "0 hrs 00 m" is the timer. 
-    // "31:10" usually means HH:MM in tracker contexts for totals.
-    const h = Math.floor(totalSeconds / 3600);
-    const m = Math.floor((totalSeconds % 3600) / 60);
-    return `${h}:${pad(m)}`;
-}
+updateTodayLabel();
+updateTimerDisplay(0);
+updateTimeZoneHint();

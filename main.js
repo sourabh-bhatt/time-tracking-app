@@ -5,6 +5,9 @@ const fs = require('fs');
 const screenshot = require('screenshot-desktop');
 const { uIOhook } = require('uiohook-napi');
 const {
+    IDLE_THRESHOLD_SECONDS,
+    TRACKING_TIME_LABEL,
+    TRACKING_TIMEZONE,
     deleteLogById,
     getTrackingStats,
     getUserState,
@@ -15,22 +18,41 @@ const {
 
 let mainWindow;
 let intervalId;
+let heartbeatIntervalId;
+let statusIntervalId;
 let isTracking = false;
-
-// Global State
 let currentUserId = null;
 let currentMemo = '';
 let todaySeconds = 0;
 let weekSeconds = 0;
-let pendingTimeout = null;
+let scheduledCaptureTimeoutIds = new Set();
+let sessionWorkedSeconds = 0;
+let trackingStartedAt = null;
+let activeSince = null;
+let idleSince = null;
+let lastInputAt = null;
+let inputMonitoringReady = false;
+let exitPresenceSaved = false;
+let presenceSyncInFlight = false;
+let pendingPresenceReason = null;
 
-// Configuration
 const INTERVAL_MS = 10 * 60 * 1000;
+const HEARTBEAT_INTERVAL_MS = 30 * 1000;
+const STATUS_INTERVAL_MS = 1000;
+const IDLE_THRESHOLD_MS = IDLE_THRESHOLD_SECONDS * 1000;
+const BLOCK_END_CAPTURE_OFFSET_MS = 10 * 1000;
+const MIN_MIDDLE_CAPTURE_DELAY_MS = 60 * 1000;
+const MIDDLE_CAPTURE_GAP_MS = 45 * 1000;
 const FALLBACK_PIXEL = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
     'base64',
 );
-let inputMonitoringReady = false;
+
+let inputCounts = {
+    mouseClicks: 0,
+    keyPresses: 0,
+    mouseMoves: 0,
+};
 
 function writeStartupLog(message) {
     try {
@@ -46,11 +68,179 @@ function writeStartupLog(message) {
     }
 }
 
+function logToFile(message) {
+    writeStartupLog(message);
+}
+
+function toIso(value) {
+    return new Date(value).toISOString();
+}
+
+function getIdleStartIso(now = Date.now()) {
+    if (!lastInputAt) {
+        return toIso(now);
+    }
+
+    return toIso(lastInputAt + IDLE_THRESHOLD_MS);
+}
+
+function isIdleAt(now = Date.now()) {
+    if (!isTracking) {
+        return false;
+    }
+
+    if (!lastInputAt) {
+        return true;
+    }
+
+    return (now - lastInputAt) >= IDLE_THRESHOLD_MS;
+}
+
+function buildPresenceState(now = Date.now()) {
+    const idle = isIdleAt(now);
+    const nextActiveSince = isTracking && !idle ? (activeSince || toIso(lastInputAt || now)) : null;
+    const nextIdleSince = isTracking && idle ? (idleSince || getIdleStartIso(now)) : null;
+
+    return {
+        isOnline: Boolean(currentUserId),
+        isTracking,
+        isIdle: idle,
+        trackingStartedAt: isTracking ? trackingStartedAt : null,
+        activeSince: nextActiveSince,
+        idleSince: nextIdleSince,
+        lastHeartbeatAt: currentUserId ? toIso(now) : null,
+        lastActivityAt: lastInputAt ? toIso(lastInputAt) : null,
+        platform: process.platform,
+    };
+}
+
+function buildRendererPresence(now = Date.now()) {
+    const presence = buildPresenceState(now);
+
+    return {
+        ...presence,
+        sessionWorkedSeconds,
+        idleThresholdSeconds: IDLE_THRESHOLD_SECONDS,
+        trackingTimeZone: TRACKING_TIMEZONE,
+        trackingTimeLabel: TRACKING_TIME_LABEL,
+    };
+}
+
+function sendTrackingConfig() {
+    if (!mainWindow) return;
+
+    mainWindow.webContents.send('tracking-config', {
+        trackingTimeZone: TRACKING_TIMEZONE,
+        trackingTimeLabel: TRACKING_TIME_LABEL,
+        idleThresholdSeconds: IDLE_THRESHOLD_SECONDS,
+    });
+}
+
+function sendPresenceUpdate() {
+    if (!mainWindow) return;
+    mainWindow.webContents.send('presence-update', buildRendererPresence());
+}
+
+async function persistPresence(reason = 'heartbeat') {
+    if (!currentUserId) {
+        return;
+    }
+
+    try {
+        await saveUserState(currentUserId, buildPresenceState());
+    } catch (error) {
+        console.error(`Error syncing presence (${reason}):`, error);
+        logToFile(`Error syncing presence (${reason}): ${error.message}`);
+    }
+}
+
+function queuePresenceSync(reason = 'heartbeat') {
+    if (presenceSyncInFlight) {
+        pendingPresenceReason = reason;
+        return;
+    }
+
+    presenceSyncInFlight = true;
+
+    persistPresence(reason)
+        .finally(() => {
+            presenceSyncInFlight = false;
+
+            if (pendingPresenceReason) {
+                const nextReason = pendingPresenceReason;
+                pendingPresenceReason = null;
+                queuePresenceSync(nextReason);
+            }
+        });
+}
+
+function clearTrackingSchedule() {
+    if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+    }
+
+    for (const timeoutId of scheduledCaptureTimeoutIds) {
+        clearTimeout(timeoutId);
+    }
+
+    scheduledCaptureTimeoutIds = new Set();
+}
+
+function resetActivityCounters() {
+    inputCounts = { mouseClicks: 0, keyPresses: 0, mouseMoves: 0 };
+}
+
+function updateIdleState(now = Date.now()) {
+    if (!isTracking) {
+        activeSince = null;
+        idleSince = null;
+        return false;
+    }
+
+    if (isIdleAt(now)) {
+        if (!idleSince) {
+            idleSince = getIdleStartIso(now);
+            activeSince = null;
+            logToFile('User marked idle after 5 minutes of inactivity. Tracking continues.');
+            queuePresenceSync('idle');
+        }
+
+        return true;
+    }
+
+    if (!activeSince) {
+        activeSince = toIso(lastInputAt || now);
+    }
+
+    idleSince = null;
+    return false;
+}
+
+function recordInput(counterKey) {
+    if (isTracking) {
+        inputCounts[counterKey] += 1;
+    }
+
+    const now = Date.now();
+    const wasIdle = isIdleAt(now);
+    lastInputAt = now;
+
+    if (isTracking && (wasIdle || !activeSince)) {
+        activeSince = toIso(now);
+        idleSince = null;
+        logToFile('Activity resumed.');
+        queuePresenceSync('activity-resumed');
+    }
+
+    sendPresenceUpdate();
+}
+
 function createWindow() {
     writeStartupLog('Creating main window.');
     mainWindow = new BrowserWindow({
         width: 450,
-        height: 700,
+        height: 760,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,
@@ -67,6 +257,8 @@ function createWindow() {
     mainWindow.once('ready-to-show', () => {
         writeStartupLog('Main window ready to show.');
         mainWindow.webContents.send('set-env-user', process.env.USER_ID || 'sourabh');
+        sendTrackingConfig();
+        sendPresenceUpdate();
         mainWindow.show();
     });
 
@@ -84,29 +276,21 @@ function createWindow() {
     });
 }
 
-// --- Input Monitoring Logic ---
-let inputCounts = {
-    mouseClicks: 0,
-    keyPresses: 0,
-    mouseMoves: 0,
-};
-
 function setupInputMonitoring() {
     uIOhook.on('keydown', () => {
-        if (isTracking) inputCounts.keyPresses += 1;
+        recordInput('keyPresses');
     });
     uIOhook.on('mousedown', () => {
-        if (isTracking) inputCounts.mouseClicks += 1;
+        recordInput('mouseClicks');
     });
     uIOhook.on('mousemove', () => {
-        if (isTracking) inputCounts.mouseMoves += 1;
+        recordInput('mouseMoves');
     });
     uIOhook.start();
     inputMonitoringReady = true;
     writeStartupLog('Input monitoring started.');
 }
 
-// --- Stats Aggregation ---
 async function sendStatsUpdate(manualData) {
     if (!mainWindow) return;
 
@@ -155,12 +339,34 @@ async function fetchStats(userId) {
     }
 }
 
-// --- Screenshot & Logging Logic ---
-function logToFile(message) {
-    writeStartupLog(message);
+function scheduleCapture(delayMs, callback) {
+    const timeoutId = setTimeout(async () => {
+        scheduledCaptureTimeoutIds.delete(timeoutId);
+        await callback();
+    }, delayMs);
+
+    scheduledCaptureTimeoutIds.add(timeoutId);
 }
 
-async function captureAndLog(type = 'auto') {
+function pickMiddleCaptureDelays(count) {
+    const latestDelay = INTERVAL_MS - BLOCK_END_CAPTURE_OFFSET_MS - MIN_MIDDLE_CAPTURE_DELAY_MS;
+    const delays = [];
+
+    while (delays.length < count && latestDelay > MIN_MIDDLE_CAPTURE_DELAY_MS) {
+        const candidate = Math.floor(
+            Math.random() * (latestDelay - MIN_MIDDLE_CAPTURE_DELAY_MS + 1),
+        ) + MIN_MIDDLE_CAPTURE_DELAY_MS;
+
+        const tooClose = delays.some((delay) => Math.abs(delay - candidate) < MIDDLE_CAPTURE_GAP_MS);
+        if (!tooClose) {
+            delays.push(candidate);
+        }
+    }
+
+    return delays.sort((left, right) => left - right);
+}
+
+async function captureAndLog(type = 'auto', options = {}) {
     if (!currentUserId) return;
     if (type === 'auto' && !isTracking) return;
 
@@ -185,6 +391,7 @@ async function captureAndLog(type = 'auto') {
             project: 'Internal Work',
             client: 'Time Tracker',
             type,
+            countsTowardTime: Boolean(options.countsTowardTime),
         });
 
         await fetchStats(currentUserId);
@@ -205,65 +412,153 @@ async function captureAndLog(type = 'auto') {
 
         console.log(`Logged (${type}) for ${currentUserId}`);
         logToFile(`Logged (${type}) successfully.`);
-
-        inputCounts = { mouseClicks: 0, keyPresses: 0, mouseMoves: 0 };
+        resetActivityCounters();
     } catch (error) {
         console.error('Error capturing/logging:', error);
         logToFile(`Critical Error in captureAndLog: ${error.message}`);
     }
 }
 
-// Logic: "In each 10 minutes take random"
 function startRandomCycle() {
-    function scheduleInBlock() {
+    function scheduleBlockCaptures() {
         if (!isTracking) return;
 
-        const delay = Math.random() * (INTERVAL_MS - 30000);
-        console.log(`Scheduled auto-capture in ${(delay / 60000).toFixed(2)} mins`);
+        const middleCaptureCount = Math.random() < 0.5 ? 2 : 3;
+        const middleCaptureDelays = pickMiddleCaptureDelays(middleCaptureCount);
 
-        pendingTimeout = setTimeout(() => {
-            captureAndLog('auto');
-        }, delay);
+        console.log(`Scheduled ${middleCaptureCount + 2} screenshots in current 10-minute block.`);
+
+        captureAndLog('block-start', { countsTowardTime: false });
+
+        for (const delay of middleCaptureDelays) {
+            scheduleCapture(delay, () => captureAndLog('sample', { countsTowardTime: false }));
+        }
+
+        scheduleCapture(INTERVAL_MS - BLOCK_END_CAPTURE_OFFSET_MS, () => captureAndLog('auto', { countsTowardTime: true }));
     }
 
-    scheduleInBlock();
-    intervalId = setInterval(scheduleInBlock, INTERVAL_MS);
+    scheduleBlockCaptures();
+    intervalId = setInterval(scheduleBlockCaptures, INTERVAL_MS);
 }
 
-// --- IPC Handlers ---
+function ensureStatusLoop() {
+    if (statusIntervalId) {
+        return;
+    }
+
+    statusIntervalId = setInterval(() => {
+        const now = Date.now();
+        updateIdleState(now);
+
+        if (isTracking) {
+            sessionWorkedSeconds += 1;
+        }
+
+        sendPresenceUpdate();
+    }, STATUS_INTERVAL_MS);
+}
+
+function ensureHeartbeatLoop() {
+    if (heartbeatIntervalId) {
+        return;
+    }
+
+    heartbeatIntervalId = setInterval(() => {
+        if (!currentUserId) {
+            return;
+        }
+
+        queuePresenceSync('heartbeat');
+    }, HEARTBEAT_INTERVAL_MS);
+}
+
+async function markUserOffline() {
+    if (!currentUserId) {
+        return;
+    }
+
+    try {
+        await saveUserState(currentUserId, {
+            isOnline: false,
+            isTracking: false,
+            isIdle: false,
+            trackingStartedAt: null,
+            activeSince: null,
+            idleSince: null,
+            lastHeartbeatAt: new Date().toISOString(),
+            lastActivityAt: lastInputAt ? new Date(lastInputAt).toISOString() : null,
+            platform: process.platform,
+        });
+    } catch (error) {
+        console.error('Error saving offline presence:', error);
+        logToFile(`Error saving offline presence: ${error.message}`);
+    }
+}
+
 ipcMain.on('user-login', async (event, userId) => {
-    currentUserId = normalizeUserId(userId);
+    const nextUserId = normalizeUserId(userId);
+
+    if (currentUserId && currentUserId !== nextUserId) {
+        await markUserOffline();
+    }
+
+    currentUserId = nextUserId;
+    exitPresenceSaved = false;
+    sessionWorkedSeconds = 0;
+    trackingStartedAt = null;
+    activeSince = null;
+    idleSince = null;
+    lastInputAt = Date.now();
+
     console.log(`User logged in: ${currentUserId}`);
     event.sender.send('init-user', currentUserId);
+    sendTrackingConfig();
+    sendPresenceUpdate();
+    queuePresenceSync('login');
 
     await fetchStats(currentUserId);
 });
 
-ipcMain.on('update-memo', (event, memo) => {
+ipcMain.on('update-memo', (_event, memo) => {
     currentMemo = memo;
 });
 
 ipcMain.on('start-tracking', () => {
     if (isTracking) return;
 
+    const now = Date.now();
     isTracking = true;
-    console.log('Tracking started');
+    sessionWorkedSeconds = 0;
+    trackingStartedAt = toIso(now);
+    activeSince = toIso(now);
+    idleSince = null;
+    lastInputAt = now;
+    resetActivityCounters();
 
-    captureAndLog('start');
+    console.log('Tracking started');
+    logToFile('Tracking started.');
+
+    sendPresenceUpdate();
+    queuePresenceSync('tracking-started');
     startRandomCycle();
 });
 
-ipcMain.on('stop-tracking', () => {
+ipcMain.on('stop-tracking', async () => {
     isTracking = false;
+    trackingStartedAt = null;
+    activeSince = null;
+    idleSince = null;
+    clearTrackingSchedule();
+
     console.log('Tracking stopped');
+    logToFile('Tracking stopped.');
 
-    if (intervalId) clearInterval(intervalId);
-    if (pendingTimeout) clearTimeout(pendingTimeout);
-
-    captureAndLog('stop');
+    sendPresenceUpdate();
+    queuePresenceSync('tracking-stopped');
+    await captureAndLog('stop', { countsTowardTime: false });
 });
 
-ipcMain.on('delete-screenshot', async (event, id) => {
+ipcMain.on('delete-screenshot', async (_event, id) => {
     if (!currentUserId) return;
 
     try {
@@ -311,13 +606,15 @@ ipcMain.on('update-manual-earnings', async (event, data) => {
     }
 });
 
-ipcMain.on('open-external', (event, url) => {
+ipcMain.on('open-external', (_event, url) => {
     shell.openExternal(url);
 });
 
 app.on('ready', async () => {
     writeStartupLog('App ready event fired.');
     createWindow();
+    ensureStatusLoop();
+    ensureHeartbeatLoop();
 
     try {
         setupInputMonitoring();
@@ -335,11 +632,31 @@ app.on('activate', () => {
     if (mainWindow === null) createWindow();
 });
 
+app.on('before-quit', async (event) => {
+    if (exitPresenceSaved || !currentUserId) {
+        return;
+    }
+
+    event.preventDefault();
+    exitPresenceSaved = true;
+    await markUserOffline();
+    app.quit();
+});
+
 app.on('will-quit', () => {
     if (inputMonitoringReady) {
         uIOhook.stop();
     }
-    if (intervalId) clearInterval(intervalId);
+
+    clearTrackingSchedule();
+
+    if (heartbeatIntervalId) {
+        clearInterval(heartbeatIntervalId);
+    }
+
+    if (statusIntervalId) {
+        clearInterval(statusIntervalId);
+    }
 });
 
 process.on('uncaughtException', (error) => {

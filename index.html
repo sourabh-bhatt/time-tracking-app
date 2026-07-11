@@ -38,8 +38,16 @@
             <!-- Timer & Toggle -->
             <div class="timer-section">
                 <div>
-                    <div id="timer" class="timer-display">0 hrs 00 m</div>
+                    <div id="timer" class="timer-display">00:00:00</div>
                     <div class="timer-label">Current Session</div>
+                    <div class="presence-stack">
+                        <div id="presenceBadge" class="presence-badge presence-offline">
+                            <span class="presence-dot"></span>
+                            <span id="presenceLabel">Offline</span>
+                        </div>
+                        <div id="presenceMeta" class="presence-meta">Waiting for tracker heartbeat.</div>
+                        <div id="timeZoneHint" class="presence-timezone">Eastern Time</div>
+                    </div>
                 </div>
                 <label class="switch">
                     <input type="checkbox" id="toggleBtn">

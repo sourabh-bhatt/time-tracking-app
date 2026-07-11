@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { updateWeeklyReport } from "../lib/google-sheets";
 import {
     TRACKING_INTERVAL_SECONDS,
+    TRACKING_TIMEZONE,
     addDays,
+    countsTowardTrackedTime,
     getUserState,
     getWeekStartDateKey,
     listLogsForDateRange,
@@ -46,14 +48,14 @@ export async function syncWeeklyReport(userId: string, dateStr: string) {
     for (let i = 0; i < 7; i += 1) {
         const currentDateKey = addDays(weekStartKey, i);
         const currentDate = new Date(`${currentDateKey}T00:00:00.000Z`);
-        const dayLogs = logs.filter((log) => log.dateKey === currentDateKey && (!log.type || log.type === "auto"));
+        const dayLogs = logs.filter((log) => log.dateKey === currentDateKey && countsTowardTrackedTime(log));
         const seconds = dayLogs.length * TRACKING_INTERVAL_SECONDS;
         totalSeconds += seconds;
 
         const hours = seconds / 3600;
         const rowData: (string | number)[] = [
             currentDateKey,
-            currentDate.toLocaleDateString("en-US", { weekday: "long", timeZone: "Asia/Kolkata" }),
+            currentDate.toLocaleDateString("en-US", { weekday: "long", timeZone: TRACKING_TIMEZONE }),
             parseFloat(hours.toFixed(2)),
         ];
 

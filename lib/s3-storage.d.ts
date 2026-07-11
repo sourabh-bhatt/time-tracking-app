@@ -16,6 +16,7 @@ export interface LogRecord {
     imageKey: string;
     logKey: string;
     dateKey: string;
+    countsTowardTime: boolean;
 }
 
 export interface UserState {
@@ -26,7 +27,39 @@ export interface UserState {
     manual_total_pending: number;
     allTimeAutoCount: number;
     lastLogDate: string | null;
+    isOnline: boolean;
+    isTracking: boolean;
+    isIdle: boolean;
+    trackingStartedAt: string | null;
+    activeSince: string | null;
+    idleSince: string | null;
+    lastHeartbeatAt: string | null;
+    lastActivityAt: string | null;
+    platform: string | null;
     lastUpdated: string | null;
+}
+
+export interface PresenceSummary {
+    userId: string;
+    status: "offline" | "tracking-off" | "idle" | "active";
+    statusLabel: string;
+    isOnline: boolean;
+    isTracking: boolean;
+    isIdle: boolean;
+    platform: string | null;
+    trackingStartedAt: string | null;
+    activeSince: string | null;
+    idleSince: string | null;
+    lastHeartbeatAt: string | null;
+    lastActivityAt: string | null;
+    heartbeatAgeSeconds: number | null;
+    activityAgeSeconds: number | null;
+    trackingDurationSeconds: number | null;
+    activeDurationSeconds: number | null;
+    idleDurationSeconds: number | null;
+    idleThresholdSeconds: number;
+    timeZone: string;
+    timeZoneLabel: string;
 }
 
 export interface TrackingStats {
@@ -47,14 +80,21 @@ export interface TrackingStats {
     weeklyLimitHours: number;
 }
 
+export const IDLE_THRESHOLD_SECONDS: number;
+export const PRESENCE_STALE_SECONDS: number;
 export const TRACKING_INTERVAL_SECONDS: number;
+export const TRACKING_TIME_LABEL: string;
 export const TRACKING_TIMEZONE: string;
 export function addDays(dateKey: string, days: number): string;
+export function countTrackedLogs(records: Array<Partial<LogRecord>>): number;
+export function countsTowardTrackedTime(record: Partial<LogRecord>): boolean;
 export function deleteLogById(id: string): Promise<LogRecord | null>;
 export function getAllTimeAutoCount(userId: string): Promise<number>;
 export function getDateKeysInRange(startDateKey: string, endDateKey: string): string[];
 export function getImageById(id: string): Promise<{ buffer: Buffer; contentType: string } | null>;
 export function getLogById(id: string): Promise<LogRecord | null>;
+export function getPresenceSummary(userId: string, now?: Date | string): Promise<PresenceSummary>;
+export function getPresenceSummaries(userIds: string[], now?: Date | string): Promise<PresenceSummary[]>;
 export function getTrackingStats(userId: string, currentDate?: Date | string): Promise<TrackingStats>;
 export function getUserState(userId: string): Promise<UserState>;
 export function getLatestLogDate(userId: string): Promise<string | null>;
@@ -72,6 +112,7 @@ export function saveLogEntry(input: {
     type?: string;
     project?: string;
     client?: string;
+    countsTowardTime?: boolean;
     updateAllTimeCount?: boolean;
 }): Promise<LogRecord>;
 export function saveUserState(userId: string, updates: Partial<UserState>): Promise<UserState>;

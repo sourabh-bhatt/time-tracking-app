@@ -1,9 +1,13 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import DownloadReportButton from "../components/DownloadReportButton";
+import TimeZoneClock from "../components/TimeZoneClock";
 import {
     TRACKING_INTERVAL_SECONDS,
+    TRACKING_TIME_LABEL,
+    TRACKING_TIMEZONE,
     addDays,
+    countsTowardTrackedTime,
     getWeekStartDateKey,
     listLogsForDateRange,
     toDateParts,
@@ -27,13 +31,13 @@ async function getWeeklyReport(startDateKey: string, selectedUser: string) {
         const date = new Date(`${dateKey}T00:00:00.000Z`);
         dailyStats[dateKey] = {
             date: dateKey,
-            dayName: date.toLocaleDateString("en-US", { weekday: "long", timeZone: "Asia/Kolkata" }),
+            dayName: date.toLocaleDateString("en-US", { weekday: "long", timeZone: TRACKING_TIMEZONE }),
             totalTime: 0,
         };
     }
 
     logs.forEach((log) => {
-        if (!log.type || log.type === "auto") {
+        if (countsTowardTrackedTime(log)) {
             if (dailyStats[log.dateKey]) {
                 dailyStats[log.dateKey].totalTime += TRACKING_INTERVAL_SECONDS;
             }
@@ -98,9 +102,14 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                     <div className="text-center md:text-left">
                         <h2 className="text-3xl font-bold text-white mb-2">Weekly Report</h2>
                         <p className="text-gray-400">
-                            {startOfWeek.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "Asia/Kolkata" })}
+                            {startOfWeek.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: TRACKING_TIMEZONE })}
                             {" - "}
-                            {weekEnd.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "Asia/Kolkata" })}
+                            {weekEnd.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: TRACKING_TIMEZONE })}
+                            <TimeZoneClock
+                                timeZone={TRACKING_TIMEZONE}
+                                label={TRACKING_TIME_LABEL}
+                                className="ml-2 text-xs tracking-[0.05em] text-sky-300"
+                            />
                         </p>
                     </div>
 
@@ -130,7 +139,7 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                                 return (
                                     <tr key={day.date} className="hover:bg-[#252525] transition-colors">
                                         <td className="px-6 py-4 text-white font-medium whitespace-nowrap">
-                                            {new Date(`${day.date}T00:00:00.000Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "Asia/Kolkata" })}
+                                            {new Date(`${day.date}T00:00:00.000Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: TRACKING_TIMEZONE })}
                                         </td>
                                         <td className="px-6 py-4 text-gray-400 whitespace-nowrap">{day.dayName}</td>
                                         <td className="px-6 py-4 font-mono text-lg text-white whitespace-nowrap">
