@@ -1,8 +1,11 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { execFile } = require('child_process');
 const path = require('path');
+const os = require('os');
 const fs = require('fs');
 const screenshot = require('screenshot-desktop');
+const { promisify } = require('util');
 const {
     IDLE_THRESHOLD_SECONDS,
     TRACKING_TIME_LABEL,
@@ -36,6 +39,7 @@ let presenceSyncInFlight = false;
 let pendingPresenceReason = null;
 let uIOhook = null;
 let inputMonitoringLoadAttempted = false;
+const execFileAsync = promisify(execFile);
 
 const INTERVAL_MS = 10 * 60 * 1000;
 const HEARTBEAT_INTERVAL_MS = 30 * 1000;
@@ -44,11 +48,6 @@ const IDLE_THRESHOLD_MS = IDLE_THRESHOLD_SECONDS * 1000;
 const BLOCK_END_CAPTURE_OFFSET_MS = 10 * 1000;
 const MIN_MIDDLE_CAPTURE_DELAY_MS = 60 * 1000;
 const MIDDLE_CAPTURE_GAP_MS = 45 * 1000;
-const FALLBACK_PIXEL = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-    'base64',
-);
-
 let inputCounts = {
     mouseClicks: 0,
     keyPresses: 0,
@@ -387,6 +386,58 @@ function pickMiddleCaptureDelays(count) {
     return delays.sort((left, right) => left - right);
 }
 
+function getLinuxScreenshotInstallHint() {
+    return 'Install a Linux screenshot tool, for example: sudo apt install -y gnome-screenshot imagemagick scrot';
+}
+
+async function captureLinuxScreenshotBuffer() {
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'time-tracker-shot-'));
+    const filePath = path.join(tempDir, `capture-${Date.now()}.png`);
+    const attempts = [
+        { command: 'gnome-screenshot', args: ['-f', filePath] },
+        { command: 'grim', args: [filePath] },
+        { command: 'spectacle', args: ['-b', '-n', '-o', filePath] },
+        { command: 'scrot', args: [filePath] },
+        { command: 'maim', args: [filePath] },
+        { command: 'import', args: ['-window', 'root', filePath] },
+    ];
+    const errors = [];
+
+    try {
+        for (const attempt of attempts) {
+            try {
+                await execFileAsync(attempt.command, attempt.args, {
+                    env: process.env,
+                    timeout: 15000,
+                    windowsHide: true,
+                });
+
+                const buffer = await fs.promises.readFile(filePath);
+                if (buffer.length > 0) {
+                    logToFile(`Captured Linux screenshot using ${attempt.command}.`);
+                    return buffer;
+                }
+
+                errors.push(`${attempt.command}: empty output`);
+            } catch (error) {
+                errors.push(`${attempt.command}: ${error.code || error.message}`);
+            }
+        }
+
+        throw new Error(`No Linux screenshot command succeeded. ${errors.join(' | ')}. ${getLinuxScreenshotInstallHint()}`);
+    } finally {
+        await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    }
+}
+
+async function captureScreenshotBuffer() {
+    if (process.platform === 'linux') {
+        return captureLinuxScreenshotBuffer();
+    }
+
+    return screenshot({ format: 'png' });
+}
+
 async function captureAndLog(type = 'auto', options = {}) {
     if (!currentUserId) return;
     if (type === 'auto' && !isTracking) return;
@@ -395,11 +446,21 @@ async function captureAndLog(type = 'auto', options = {}) {
         let imgBuffer;
 
         try {
-            imgBuffer = await screenshot({ format: 'png' });
+            imgBuffer = await captureScreenshotBuffer();
         } catch (screenshotErr) {
             console.error('Screenshot failed:', screenshotErr);
             logToFile(`Screenshot failed: ${screenshotErr.message}`);
-            imgBuffer = FALLBACK_PIXEL;
+
+            if (mainWindow) {
+                mainWindow.webContents.send('show-notification', {
+                    title: 'Screenshot Failed',
+                    body: process.platform === 'linux'
+                        ? 'Install gnome-screenshot or another Linux screenshot tool.'
+                        : 'Unable to capture the screen.',
+                });
+            }
+
+            return;
         }
 
         const timestamp = new Date();
