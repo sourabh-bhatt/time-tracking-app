@@ -3,10 +3,13 @@ set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 APPLICATIONS_DIR="${HOME}/.local/share/applications"
-APPLICATIONS_FILE="${APPLICATIONS_DIR}/time-tracker-prayash.desktop"
-DESKTOP_SHORTCUT="${HOME}/Desktop/time-tracker-prayash.desktop"
+APPLICATIONS_FILE="${APPLICATIONS_DIR}/employee-tracker-prayash.desktop"
+DESKTOP_SHORTCUT="${HOME}/Desktop/employee-tracker-prayash.desktop"
 ICON_PATH="${APP_DIR}/public/time-tracker-linux.svg"
 LAUNCH_SCRIPT="${APP_DIR}/start-prayash-linux.sh"
+APP_NAME="Employee Tracker"
+LEGACY_APPLICATIONS_FILE="${APPLICATIONS_DIR}/time-tracker-prayash.desktop"
+LEGACY_DESKTOP_SHORTCUT="${HOME}/Desktop/time-tracker-prayash.desktop"
 
 chmod +x "${APP_DIR}/start-linux.sh" "${LAUNCH_SCRIPT}"
 
@@ -18,17 +21,21 @@ write_desktop_entry() {
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Time Tracker (Prayash)
-Comment=Launch Prayash's Time Tracker
+Name=${APP_NAME}
+GenericName=Employee Time Tracking
+Comment=Launch ${APP_NAME} for Prayash
 Exec=${LAUNCH_SCRIPT}
 TryExec=${LAUNCH_SCRIPT}
 Path=${APP_DIR}
 Icon=${ICON_PATH}
 Terminal=false
+Keywords=Employee Tracker;Time Tracker;Prayash;Tracking;
 Categories=Office;Utility;
 StartupNotify=true
 EOF
 }
+
+rm -f "${LEGACY_APPLICATIONS_FILE}" "${LEGACY_DESKTOP_SHORTCUT}"
 
 write_desktop_entry "${APPLICATIONS_FILE}"
 chmod +x "${APPLICATIONS_FILE}"
@@ -52,4 +59,4 @@ if [ -f "${DESKTOP_SHORTCUT}" ]; then
   echo "${DESKTOP_SHORTCUT}"
 fi
 echo
-echo "You can now search for 'Time Tracker (Prayash)' in the app menu or click the desktop icon."
+echo "You can now search for '${APP_NAME}' in the app menu or click the desktop icon."
