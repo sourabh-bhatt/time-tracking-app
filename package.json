@@ -12,6 +12,7 @@
     "build:electron": "electron-builder",
     "build:linux": "electron-builder --linux AppImage deb",
     "build:linux:arm64": "electron-builder --linux AppImage deb --arm64",
+    "build:linux:arm64:appimage": "electron-builder --linux AppImage --arm64",
     "build:portable-win": "electron-packager . \"Time Tracker\" --platform=win32 --arch=x64 --out portable-dist --overwrite --asar --prune=false",
     "lint": "eslint",
     "migrate:s3": "node scripts/migrate-mongo-to-s3.js"

@@ -31,4 +31,17 @@ PY
 
 echo "Building Linux package for Prayash..."
 npm install
-npm run build:linux:arm64
+
+ARCH="$(uname -m)"
+
+if [ "${ARCH}" = "aarch64" ] || [ "${ARCH}" = "arm64" ]; then
+  echo "Detected ${ARCH}. Building AppImage only for ARM64."
+  npm run build:linux:arm64:appimage
+else
+  echo "Detected ${ARCH}. Building AppImage and .deb."
+  npm run build:linux
+fi
+
+echo
+echo "Build output:"
+ls -1 dist
