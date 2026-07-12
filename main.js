@@ -3,7 +3,6 @@ const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const screenshot = require('screenshot-desktop');
-const { uIOhook } = require('uiohook-napi');
 const {
     IDLE_THRESHOLD_SECONDS,
     TRACKING_TIME_LABEL,
@@ -35,6 +34,8 @@ let inputMonitoringReady = false;
 let exitPresenceSaved = false;
 let presenceSyncInFlight = false;
 let pendingPresenceReason = null;
+let uIOhook = null;
+let inputMonitoringLoadAttempted = false;
 
 const INTERVAL_MS = 10 * 60 * 1000;
 const HEARTBEAT_INTERVAL_MS = 30 * 1000;
@@ -277,6 +278,26 @@ function createWindow() {
 }
 
 function setupInputMonitoring() {
+    if (inputMonitoringReady) {
+        return;
+    }
+
+    if (!inputMonitoringLoadAttempted) {
+        inputMonitoringLoadAttempted = true;
+
+        try {
+            ({ uIOhook } = require('uiohook-napi'));
+        } catch (error) {
+            writeStartupLog(`Input monitoring unavailable: ${error.message}`);
+            console.error('Input monitoring unavailable:', error);
+            return;
+        }
+    }
+
+    if (!uIOhook) {
+        return;
+    }
+
     uIOhook.on('keydown', () => {
         recordInput('keyPresses');
     });
@@ -644,7 +665,7 @@ app.on('before-quit', async (event) => {
 });
 
 app.on('will-quit', () => {
-    if (inputMonitoringReady) {
+    if (inputMonitoringReady && uIOhook) {
         uIOhook.stop();
     }
 
