@@ -49,6 +49,9 @@
   "build": {
     "appId": "com.beyondbillions.tracker",
     "productName": "Time Tracker",
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "buildDependenciesFromSource": false,
     "directories": {
       "output": "dist"
     },
