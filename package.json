@@ -17,7 +17,10 @@
     "migrate:s3": "node scripts/migrate-mongo-to-s3.js"
   },
   "keywords": [],
-  "author": "Beyond Billions",
+  "author": {
+    "name": "Beyond Billions",
+    "email": "support@beyondbillions.com"
+  },
   "license": "ISC",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1024.0",
@@ -66,6 +69,7 @@
         "AppImage",
         "deb"
       ],
+      "maintainer": "Beyond Billions <support@beyondbillions.com>",
       "category": "Utility"
     },
     "nsis": {
