@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
-const { execFile } = require('child_process');
+const { app, BrowserWindow, ipcMain, powerMonitor, shell } = require('electron');
+const { execFile, spawn } = require('child_process');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -39,15 +39,17 @@ let presenceSyncInFlight = false;
 let pendingPresenceReason = null;
 let uIOhook = null;
 let inputMonitoringLoadAttempted = false;
+let linuxInputProcess = null;
+let systemIdleErrorLogged = false;
 const execFileAsync = promisify(execFile);
 
 const INTERVAL_MS = 10 * 60 * 1000;
 const HEARTBEAT_INTERVAL_MS = 30 * 1000;
 const STATUS_INTERVAL_MS = 1000;
 const IDLE_THRESHOLD_MS = IDLE_THRESHOLD_SECONDS * 1000;
-const BLOCK_END_CAPTURE_OFFSET_MS = 10 * 1000;
-const MIN_MIDDLE_CAPTURE_DELAY_MS = 60 * 1000;
-const MIDDLE_CAPTURE_GAP_MS = 45 * 1000;
+const MIN_RANDOM_CAPTURE_DELAY_MS = 30 * 1000;
+const MAX_RANDOM_CAPTURE_DELAY_MS = INTERVAL_MS - (30 * 1000);
+const MIN_RANDOM_CAPTURE_GAP_MS = 90 * 1000;
 let inputCounts = {
     mouseClicks: 0,
     keyPresses: 0,
@@ -74,6 +76,23 @@ function logToFile(message) {
 
 function toIso(value) {
     return new Date(value).toISOString();
+}
+
+function getSystemIdleSnapshot(now = Date.now()) {
+    try {
+        const idleSeconds = Math.max(0, Number(powerMonitor.getSystemIdleTime() || 0));
+        return {
+            idleSeconds,
+            lastActivityAt: now - (idleSeconds * 1000),
+        };
+    } catch (error) {
+        if (!systemIdleErrorLogged) {
+            systemIdleErrorLogged = true;
+            logToFile(`System idle monitoring unavailable: ${error.message}`);
+        }
+
+        return null;
+    }
 }
 
 function getIdleStartIso(now = Date.now()) {
@@ -202,7 +221,8 @@ function updateIdleState(now = Date.now()) {
         if (!idleSince) {
             idleSince = getIdleStartIso(now);
             activeSince = null;
-            logToFile('User marked idle after 5 minutes of inactivity. Tracking continues.');
+            resetActivityCounters();
+            logToFile('User marked idle after 5 minutes of inactivity. Screenshots and time are paused.');
             queuePresenceSync('idle');
         }
 
@@ -217,12 +237,7 @@ function updateIdleState(now = Date.now()) {
     return false;
 }
 
-function recordInput(counterKey) {
-    if (isTracking) {
-        inputCounts[counterKey] += 1;
-    }
-
-    const now = Date.now();
+function markActivityDetected(now = Date.now()) {
     const wasIdle = isIdleAt(now);
     lastInputAt = now;
 
@@ -232,6 +247,44 @@ function recordInput(counterKey) {
         logToFile('Activity resumed.');
         queuePresenceSync('activity-resumed');
     }
+}
+
+function syncSystemActivity(now = Date.now()) {
+    const snapshot = getSystemIdleSnapshot(now);
+    if (!snapshot) {
+        return;
+    }
+
+    const previousLastInputAt = lastInputAt;
+    const systemActivityIsNewer = !previousLastInputAt
+        || snapshot.lastActivityAt > previousLastInputAt + 500;
+
+    if (systemActivityIsNewer) {
+        const wasIdle = isIdleAt(now);
+        lastInputAt = snapshot.lastActivityAt;
+
+        // System idle changes supplement native hooks and keep activity bars
+        // useful on Linux display servers that expose only part of the input stream.
+        if (isTracking) {
+            inputCounts.mouseMoves += 1;
+        }
+
+        if (isTracking && (wasIdle || !activeSince)) {
+            activeSince = toIso(snapshot.lastActivityAt);
+            idleSince = null;
+            logToFile('Activity resumed from system idle monitoring.');
+            queuePresenceSync('activity-resumed');
+        }
+    }
+}
+
+function recordInput(counterKey) {
+    if (isTracking) {
+        inputCounts[counterKey] += 1;
+    }
+
+    const now = Date.now();
+    markActivityDetected(now);
 
     sendPresenceUpdate();
 }
@@ -276,6 +329,53 @@ function createWindow() {
     });
 }
 
+function setupLinuxInputMonitoring() {
+    if (process.platform !== 'linux' || linuxInputProcess) {
+        return;
+    }
+
+    let outputBuffer = '';
+    const child = spawn('xinput', ['test-xi2', '--root'], {
+        env: process.env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    linuxInputProcess = child;
+    inputMonitoringReady = true;
+
+    child.stdout.on('data', (chunk) => {
+        outputBuffer += chunk.toString();
+        const lines = outputBuffer.split(/\r?\n/);
+        outputBuffer = lines.pop() || '';
+
+        for (const line of lines) {
+            if (line.includes('RawKeyPress')) {
+                recordInput('keyPresses');
+            } else if (line.includes('RawButtonPress')) {
+                recordInput('mouseClicks');
+            } else if (line.includes('RawMotion')) {
+                recordInput('mouseMoves');
+            }
+        }
+    });
+
+    child.on('spawn', () => {
+        writeStartupLog('Linux input monitoring started with xinput.');
+    });
+
+    child.on('error', (error) => {
+        inputMonitoringReady = false;
+        linuxInputProcess = null;
+        writeStartupLog(`Linux xinput monitoring unavailable: ${error.message}`);
+    });
+
+    child.on('exit', (code, signal) => {
+        inputMonitoringReady = false;
+        linuxInputProcess = null;
+        writeStartupLog(`Linux xinput monitoring stopped (${code ?? signal ?? 'unknown'}).`);
+    });
+}
+
 function setupInputMonitoring() {
     if (inputMonitoringReady) {
         return;
@@ -289,11 +389,11 @@ function setupInputMonitoring() {
         } catch (error) {
             writeStartupLog(`Input monitoring unavailable: ${error.message}`);
             console.error('Input monitoring unavailable:', error);
-            return;
         }
     }
 
     if (!uIOhook) {
+        setupLinuxInputMonitoring();
         return;
     }
 
@@ -368,16 +468,15 @@ function scheduleCapture(delayMs, callback) {
     scheduledCaptureTimeoutIds.add(timeoutId);
 }
 
-function pickMiddleCaptureDelays(count) {
-    const latestDelay = INTERVAL_MS - BLOCK_END_CAPTURE_OFFSET_MS - MIN_MIDDLE_CAPTURE_DELAY_MS;
+function pickRandomCaptureDelays() {
     const delays = [];
 
-    while (delays.length < count && latestDelay > MIN_MIDDLE_CAPTURE_DELAY_MS) {
+    while (delays.length < 2) {
         const candidate = Math.floor(
-            Math.random() * (latestDelay - MIN_MIDDLE_CAPTURE_DELAY_MS + 1),
-        ) + MIN_MIDDLE_CAPTURE_DELAY_MS;
+            Math.random() * (MAX_RANDOM_CAPTURE_DELAY_MS - MIN_RANDOM_CAPTURE_DELAY_MS + 1),
+        ) + MIN_RANDOM_CAPTURE_DELAY_MS;
 
-        const tooClose = delays.some((delay) => Math.abs(delay - candidate) < MIDDLE_CAPTURE_GAP_MS);
+        const tooClose = delays.some((delay) => Math.abs(delay - candidate) < MIN_RANDOM_CAPTURE_GAP_MS);
         if (!tooClose) {
             delays.push(candidate);
         }
@@ -439,8 +538,15 @@ async function captureScreenshotBuffer() {
 }
 
 async function captureAndLog(type = 'auto', options = {}) {
-    if (!currentUserId) return;
-    if (type === 'auto' && !isTracking) return;
+    if (!currentUserId || !isTracking) return null;
+
+    const captureStartedAt = Date.now();
+    syncSystemActivity(captureStartedAt);
+
+    if (updateIdleState(captureStartedAt)) {
+        logToFile(`Skipped ${type} screenshot because the user has been idle for 5 minutes.`);
+        return null;
+    }
 
     try {
         let imgBuffer;
@@ -460,7 +566,13 @@ async function captureAndLog(type = 'auto', options = {}) {
                 });
             }
 
-            return;
+            return null;
+        }
+
+        syncSystemActivity(Date.now());
+        if (!isTracking || updateIdleState(Date.now())) {
+            logToFile(`Discarded ${type} screenshot because tracking stopped or the user became idle.`);
+            return null;
         }
 
         const timestamp = new Date();
@@ -485,19 +597,24 @@ async function captureAndLog(type = 'auto', options = {}) {
                 image: `data:image/png;base64,${imgBuffer.toString('base64')}`,
                 type,
             });
-            mainWindow.webContents.send('play-sound');
+            if (process.platform !== 'linux') {
+                mainWindow.webContents.send('play-sound');
+            }
             mainWindow.webContents.send('show-notification', {
                 title: 'Screenshot Taken',
                 body: 'Your activity has been logged.',
+                silent: process.platform === 'linux',
             });
         }
 
         console.log(`Logged (${type}) for ${currentUserId}`);
         logToFile(`Logged (${type}) successfully.`);
         resetActivityCounters();
+        return savedLog;
     } catch (error) {
         console.error('Error capturing/logging:', error);
         logToFile(`Critical Error in captureAndLog: ${error.message}`);
+        return null;
     }
 }
 
@@ -505,18 +622,22 @@ function startRandomCycle() {
     function scheduleBlockCaptures() {
         if (!isTracking) return;
 
-        const middleCaptureCount = Math.random() < 0.5 ? 2 : 3;
-        const middleCaptureDelays = pickMiddleCaptureDelays(middleCaptureCount);
+        const [firstDelay, secondDelay] = pickRandomCaptureDelays();
+        const blockState = { firstCapturePromise: Promise.resolve(null) };
 
-        console.log(`Scheduled ${middleCaptureCount + 2} screenshots in current 10-minute block.`);
+        console.log('Scheduled 2 random screenshots in current 10-minute block.');
 
-        captureAndLog('block-start', { countsTowardTime: false });
+        scheduleCapture(firstDelay, () => {
+            blockState.firstCapturePromise = captureAndLog('sample', { countsTowardTime: false });
+            return blockState.firstCapturePromise;
+        });
 
-        for (const delay of middleCaptureDelays) {
-            scheduleCapture(delay, () => captureAndLog('sample', { countsTowardTime: false }));
-        }
-
-        scheduleCapture(INTERVAL_MS - BLOCK_END_CAPTURE_OFFSET_MS, () => captureAndLog('auto', { countsTowardTime: true }));
+        scheduleCapture(secondDelay, async () => {
+            const firstCapture = await blockState.firstCapturePromise;
+            return captureAndLog('auto', {
+                countsTowardTime: Boolean(firstCapture),
+            });
+        });
     }
 
     scheduleBlockCaptures();
@@ -530,9 +651,10 @@ function ensureStatusLoop() {
 
     statusIntervalId = setInterval(() => {
         const now = Date.now();
-        updateIdleState(now);
+        syncSystemActivity(now);
+        const idle = updateIdleState(now);
 
-        if (isTracking) {
+        if (isTracking && !idle) {
             sessionWorkedSeconds += 1;
         }
 
@@ -614,7 +736,7 @@ ipcMain.on('start-tracking', () => {
     trackingStartedAt = toIso(now);
     activeSince = toIso(now);
     idleSince = null;
-    lastInputAt = now;
+    lastInputAt = getSystemIdleSnapshot(now)?.lastActivityAt || now;
     resetActivityCounters();
 
     console.log('Tracking started');
@@ -637,7 +759,7 @@ ipcMain.on('stop-tracking', async () => {
 
     sendPresenceUpdate();
     queuePresenceSync('tracking-stopped');
-    await captureAndLog('stop', { countsTowardTime: false });
+    resetActivityCounters();
 });
 
 ipcMain.on('delete-screenshot', async (_event, id) => {
@@ -728,6 +850,11 @@ app.on('before-quit', async (event) => {
 app.on('will-quit', () => {
     if (inputMonitoringReady && uIOhook) {
         uIOhook.stop();
+    }
+
+    if (linuxInputProcess) {
+        linuxInputProcess.kill();
+        linuxInputProcess = null;
     }
 
     clearTrackingSchedule();

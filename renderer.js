@@ -142,7 +142,7 @@ function renderPresence(presence) {
         nextTheme = 'presence-paused';
     } else if (presence.isTracking && presence.isIdle) {
         nextLabel = 'Idle';
-        nextMeta = `Idle for ${formatDurationShort(presence.idleDurationSeconds)}. Tracking stays on and screenshots continue.`;
+        nextMeta = `Idle for ${formatDurationShort(presence.idleDurationSeconds)}. Screenshots and time are paused.`;
         nextTheme = 'presence-idle';
     } else if (presence.isTracking) {
         nextLabel = 'Active';
@@ -310,6 +310,7 @@ if (saveEarningsBtn) {
 ipcRenderer.on('show-notification', (_event, data) => {
     new Notification(data.title, {
         body: data.body,
+        silent: Boolean(data.silent),
     });
 });
 

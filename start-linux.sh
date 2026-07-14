@@ -46,5 +46,10 @@ if ! command -v gnome-screenshot >/dev/null 2>&1 \
   echo "Install one with: sudo apt install -y gnome-screenshot imagemagick scrot"
 fi
 
+if ! command -v xinput >/dev/null 2>&1; then
+  echo "Warning: xinput is not installed, so detailed Linux key/click activity bars are unavailable."
+  echo "Install it with: sudo apt install -y xinput"
+fi
+
 echo "Launching Electron app..."
 npm start
