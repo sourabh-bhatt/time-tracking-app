@@ -1,3 +1,31 @@
+type TimeZoneDisplayOptions = {
+    includeLabel?: boolean;
+    includeSeconds?: boolean;
+    includeOffset?: boolean;
+};
+
+type FormatTimeOptions = {
+    includeSeconds?: boolean;
+    includeDayPeriod?: boolean;
+};
+
+function formatTimeInZone(date: Date, timeZone: string, options?: FormatTimeOptions) {
+    const includeSeconds = Boolean(options?.includeSeconds);
+    const includeDayPeriod = options?.includeDayPeriod !== false;
+    const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        hour: "numeric",
+        minute: "2-digit",
+        second: includeSeconds ? "2-digit" : undefined,
+    }).formatToParts(date);
+
+    return parts
+        .filter((part) => includeDayPeriod || part.type !== "dayPeriod")
+        .map((part) => part.value)
+        .join("")
+        .trim();
+}
+
 export function getTimeZoneAbbreviation(date: Date, timeZone: string) {
     const parts = new Intl.DateTimeFormat("en-US", {
         timeZone,
@@ -30,18 +58,22 @@ export function getTimeZoneDisplay(
     date: Date,
     timeZone: string,
     label: string,
-    options?: { includeLabel?: boolean; includeSeconds?: boolean },
+    options?: TimeZoneDisplayOptions,
 ) {
     const includeLabel = Boolean(options?.includeLabel);
     const includeSeconds = Boolean(options?.includeSeconds);
-    const timeText = date.toLocaleTimeString("en-US", {
-        timeZone,
-        hour: "2-digit",
-        minute: "2-digit",
-        second: includeSeconds ? "2-digit" : undefined,
-    });
+    const includeOffset = options?.includeOffset !== false;
+    const timeText = formatTimeInZone(date, timeZone, { includeSeconds });
     const zone = getTimeZoneAbbreviation(date, timeZone);
-    const offset = getTimeZoneOffsetLabel(date, timeZone);
+    const offset = includeOffset ? getTimeZoneOffsetLabel(date, timeZone) : "";
+
+    if (!includeOffset) {
+        if (includeLabel) {
+            return `${timeText} ${label} ${zone}`;
+        }
+
+        return `${timeText} ${zone}`;
+    }
 
     if (includeLabel) {
         return `${timeText} ${label} ${zone} \u00b7 ${offset}`;
@@ -51,10 +83,20 @@ export function getTimeZoneDisplay(
 }
 
 export function getCompactTimeZoneDisplay(date: Date, timeZone: string) {
-    const timeText = date.toLocaleTimeString("en-US", {
+    const timeText = formatTimeInZone(date, timeZone);
+    return `${timeText} ${getTimeZoneAbbreviation(date, timeZone)}`;
+}
+
+export function getHourInTimeZone(date: Date, timeZone: string) {
+    const parts = new Intl.DateTimeFormat("en-US", {
         timeZone,
         hour: "numeric",
-        minute: "2-digit",
-    });
-    return `${timeText} ${getTimeZoneAbbreviation(date, timeZone)}`;
+        hour12: false,
+    }).formatToParts(date);
+    const hour = parts.find((part) => part.type === "hour")?.value;
+    return Number(hour || 0);
+}
+
+export function getTimeZoneRangeDisplay(start: Date, end: Date, timeZone: string) {
+    return `${formatTimeInZone(start, timeZone)} - ${formatTimeInZone(end, timeZone, { includeDayPeriod: false })}`;
 }

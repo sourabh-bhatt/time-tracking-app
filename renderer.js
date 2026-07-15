@@ -29,13 +29,14 @@ const totalPendingInput = document.getElementById('totalPendingInput');
 const saveEarningsBtn = document.getElementById('saveEarningsBtn');
 const usersSettingsIcon = document.querySelector('.settings-icon');
 
-let currentUser = 'sourabh';
-let envUser = 'sourabh';
+let currentUser = '';
+let envUser = '';
 let isTracking = false;
 let trackingTimeZone = 'America/New_York';
 let trackingTimeLabel = 'Eastern Time';
 let idleThresholdSeconds = 300;
 let knownFlagIds = new Set();
+let hasAutoLoggedEnvUser = false;
 
 function pad(num) {
     return num.toString().padStart(2, '0');
@@ -107,9 +108,8 @@ function getTimeZoneHintText(date = new Date()) {
     const currentDate = new Date(date);
     const timeText = currentDate.toLocaleTimeString('en-US', {
         timeZone: trackingTimeZone,
-        hour: '2-digit',
+        hour: 'numeric',
         minute: '2-digit',
-        second: '2-digit',
     });
 
     return `${timeText} ${trackingTimeLabel} ${getTimeZoneAbbreviation(currentDate)} · ${getTimeZoneOffsetLabel(currentDate)}`;
@@ -124,6 +124,40 @@ function updateTodayLabel() {
         timeZone: trackingTimeZone,
         weekday: 'short',
     }).format(new Date());
+}
+
+function renderLoginButtons() {
+    const btnContainer = document.getElementById('user-select-buttons');
+    if (!btnContainer) {
+        return;
+    }
+
+    if (envUser === 'prayash') {
+        btnContainer.innerHTML = `
+            <button class="btn user-btn" onclick="login('prayash')" style="background-color: #2c2c2c; width: 200px;">
+                <i class="fas fa-user-circle" style="margin-right: 10px;"></i> Prayash
+            </button>
+        `;
+        return;
+    }
+
+    if (envUser === 'sourabh') {
+        btnContainer.innerHTML = `
+            <button class="btn user-btn" onclick="login('sourabh')" style="width: 200px;">
+                <i class="fas fa-user-circle" style="margin-right: 10px;"></i> Admin
+            </button>
+        `;
+        return;
+    }
+
+    btnContainer.innerHTML = `
+        <button class="btn user-btn" onclick="login('sourabh')" style="width: 200px;">
+            <i class="fas fa-user-circle" style="margin-right: 10px;"></i> Admin
+        </button>
+        <button class="btn user-btn" onclick="login('prayash')" style="background-color: #2c2c2c; width: 200px;">
+            <i class="fas fa-user-circle" style="margin-right: 10px;"></i> Prayash
+        </button>
+    `;
 }
 
 function setPresenceTheme(theme) {
@@ -174,21 +208,12 @@ ipcRenderer.on('tracking-config', (_event, config) => {
 });
 
 ipcRenderer.on('set-env-user', (_event, userId) => {
-    envUser = userId.toLowerCase();
+    envUser = String(userId || '').trim().toLowerCase();
+    renderLoginButtons();
 
-    const btnContainer = document.getElementById('user-select-buttons');
-    if (envUser === 'prayash') {
-        btnContainer.innerHTML = `
-            <button class="btn user-btn" onclick="login('prayash')" style="background-color: #2c2c2c; width: 200px;">
-                <i class="fas fa-user-circle" style="margin-right: 10px;"></i> Prayash
-            </button>
-        `;
-    } else {
-        btnContainer.innerHTML = `
-            <button class="btn user-btn" onclick="login('sourabh')" style="width: 200px;">
-                <i class="fas fa-user-circle" style="margin-right: 10px;"></i> Admin
-            </button>
-        `;
+    if (!hasAutoLoggedEnvUser && (envUser === 'prayash' || envUser === 'sourabh')) {
+        hasAutoLoggedEnvUser = true;
+        window.login(envUser);
     }
 });
 
@@ -351,3 +376,4 @@ function formatWeekHours(totalSeconds) {
 updateTodayLabel();
 updateTimerDisplay(0);
 updateTimeZoneHint();
+renderLoginButtons();

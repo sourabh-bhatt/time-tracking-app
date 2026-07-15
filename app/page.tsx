@@ -6,7 +6,7 @@ import LivePresencePanel from "./components/LivePresencePanel";
 import TimeZoneClock from "./components/TimeZoneClock";
 import FlagButton from "./components/FlagButton";
 import FlagReviewPanel from "./components/FlagReviewPanel";
-import { getCompactTimeZoneDisplay } from "./components/timeZoneUtils";
+import { getCompactTimeZoneDisplay, getHourInTimeZone, getTimeZoneRangeDisplay } from "./components/timeZoneUtils";
 import { getManualEarnings, syncWeeklyReport } from "./actions";
 import {
   TRACKING_INTERVAL_SECONDS,
@@ -51,6 +51,19 @@ function formatTrackingTimestamp(timestamp: string) {
   return getCompactTimeZoneDisplay(new Date(timestamp), TRACKING_TIMEZONE);
 }
 
+function formatTrackingRange(logs: LogEntry[]) {
+  return getTimeZoneRangeDisplay(
+    new Date(logs[0].timestamp),
+    new Date(logs[logs.length - 1].timestamp),
+    TRACKING_TIMEZONE,
+  );
+}
+
+function formatTrackedDuration(logs: LogEntry[]) {
+  const trackedMinutes = countTimeLogs(logs) * (TRACKING_INTERVAL_SECONDS / 60);
+  return `(${trackedMinutes} mins)`;
+}
+
 export default async function Home(props: { searchParams: Promise<{ user?: string; date?: string }> }) {
   const cookieStore = await cookies();
   const isAdmin = cookieStore.has("admin_session");
@@ -83,15 +96,10 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
   const allTimeSeconds = allTimeCount * TRACKING_INTERVAL_SECONDS;
   const allTimeEarnings = (allTimeSeconds / 3600) * 5;
 
-  const getTrackingHour = (date: Date) => {
-    const d = new Date(date.toLocaleString("en-US", { timeZone: TRACKING_TIMEZONE }));
-    return d.getHours();
-  };
-
   const logsByHourAndMemo: { [key: number]: { [key: string]: LogEntry[] } } = {};
 
   logs.forEach((log) => {
-    const hour = getTrackingHour(new Date(log.timestamp));
+    const hour = getHourInTimeZone(new Date(log.timestamp), TRACKING_TIMEZONE);
     const memo = log.memo || "No Memo";
 
     if (!logsByHourAndMemo[hour]) logsByHourAndMemo[hour] = {};
@@ -108,7 +116,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
   const totalEarnings = (totalSeconds / 3600) * hourlyRate;
   const weeklyEarnings = (weeklySeconds / 3600) * hourlyRate;
 
-  const loggedHours = logs.map((log) => getTrackingHour(new Date(log.timestamp)));
+  const loggedHours = logs.map((log) => getHourInTimeZone(new Date(log.timestamp), TRACKING_TIMEZONE));
   const trackedHours = new Set(loggedHours);
 
   const getPrevDate = () => addDays(selectedDateStr, -1);
@@ -177,6 +185,8 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
             <TimeZoneClock
               timeZone={TRACKING_TIMEZONE}
               label={TRACKING_TIME_LABEL}
+              includeLabel={false}
+              includeOffset={false}
               className="text-xs tracking-[0.05em] text-sky-300"
             />
           </div>
@@ -261,10 +271,8 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-[#14a800]"></div>
                         <h3 className="font-medium text-white text-sm md:text-base leading-snug">
-                          {formatTrackingTimestamp(memoLogs[0].timestamp)}
-                          {" - "}
-                          {formatTrackingTimestamp(memoLogs[memoLogs.length - 1].timestamp)}
-                          <span className="text-gray-400 font-normal ml-2">{countTimeLogs(memoLogs) > 0 ? `(${countTimeLogs(memoLogs) * 10} mins)` : "(Evidence only)"}</span>
+                          {formatTrackingRange(memoLogs)}
+                          <span className="text-gray-400 font-normal ml-2">{formatTrackedDuration(memoLogs)}</span>
                         </h3>
                       </div>
                       <div className="text-white font-medium">{memo}</div>

@@ -51,6 +51,25 @@ const IDLE_THRESHOLD_MS = IDLE_THRESHOLD_SECONDS * 1000;
 const MIN_RANDOM_CAPTURE_DELAY_MS = 30 * 1000;
 const MAX_RANDOM_CAPTURE_DELAY_MS = INTERVAL_MS - (30 * 1000);
 const MIN_RANDOM_CAPTURE_GAP_MS = 90 * 1000;
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+    app.quit();
+} else {
+    app.on('second-instance', () => {
+        if (!mainWindow) {
+            return;
+        }
+
+        if (mainWindow.isMinimized()) {
+            mainWindow.restore();
+        }
+
+        mainWindow.show();
+        mainWindow.focus();
+    });
+}
+
 let inputCounts = {
     mouseClicks: 0,
     keyPresses: 0,
@@ -310,7 +329,7 @@ function createWindow() {
 
     mainWindow.once('ready-to-show', () => {
         writeStartupLog('Main window ready to show.');
-        mainWindow.webContents.send('set-env-user', process.env.USER_ID || 'sourabh');
+        mainWindow.webContents.send('set-env-user', normalizeUserId(process.env.USER_ID || ''));
         sendTrackingConfig();
         sendPresenceUpdate();
         mainWindow.show();

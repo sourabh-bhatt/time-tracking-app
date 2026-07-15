@@ -7,13 +7,15 @@ export default function TimeZoneClock({
     timeZone,
     label,
     includeLabel = true,
-    includeSeconds = true,
+    includeSeconds = false,
+    includeOffset = true,
     className = "",
 }: {
     timeZone: string;
     label: string;
     includeLabel?: boolean;
     includeSeconds?: boolean;
+    includeOffset?: boolean;
     className?: string;
 }) {
     const [now, setNow] = useState(() => new Date());
@@ -28,7 +30,7 @@ export default function TimeZoneClock({
 
     return (
         <span className={className}>
-            {getTimeZoneDisplay(now, timeZone, label, { includeLabel, includeSeconds })}
+            {getTimeZoneDisplay(now, timeZone, label, { includeLabel, includeSeconds, includeOffset })}
         </span>
     );
 }
