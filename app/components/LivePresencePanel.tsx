@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getCompactTimeZoneDisplay, getTimeZoneAbbreviation } from "./timeZoneUtils";
+import { getCompactTimeZoneDisplay, getEasternTime, getTimeZoneAbbreviation } from "./timeZoneUtils";
 
 type PresenceSummary = {
     userId: string;
@@ -46,16 +46,12 @@ function formatElapsed(totalSeconds: number | null) {
     return `${seconds}s`;
 }
 
-function formatTime(iso: string | null, timeZone: string) {
+function formatTime(iso: string | null, _timeZone: string) {
     if (!iso) {
         return "n/a";
     }
 
-    return new Date(iso).toLocaleTimeString("en-US", {
-        timeZone,
-        hour: "numeric",
-        minute: "2-digit",
-    });
+    return getEasternTime(iso);
 }
 
 function getCardClasses(status: PresenceSummary["status"]) {

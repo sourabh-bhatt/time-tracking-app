@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import ImageModal from "../components/ImageModal";
 import FlagReviewPanel from "../components/FlagReviewPanel";
 import TimeZoneClock from "../components/TimeZoneClock";
-import { getCompactTimeZoneDisplay, getHourInTimeZone, getTimeZoneRangeDisplay } from "../components/timeZoneUtils";
+import { EASTERN_TIMEZONE, getCompactTimeZoneDisplay, getEasternDateDisplay, getHourInTimeZone, getTimeZoneRangeDisplay } from "../components/timeZoneUtils";
 import {
     TRACKING_INTERVAL_SECONDS,
     TRACKING_TIME_LABEL,
@@ -11,6 +11,7 @@ import {
     addDays,
     countTrackedLogs,
     getLatestLogDate,
+    parseDateKey,
     getWeekStartDateKey,
     listLogsForDate,
     listLogsForDateRange,
@@ -67,7 +68,7 @@ export default async function Diary(props: { searchParams: Promise<{ user?: stri
     const requestedDateStr = searchParams.date || toDateParts(new Date()).dateKey;
     const latestLogDate = await getLatestLogDate(selectedUser);
     const selectedDateStr = searchParams.date || latestLogDate || requestedDateStr;
-    const selectedDate = new Date(`${selectedDateStr}T00:00:00.000Z`);
+    const selectedDate = parseDateKey(selectedDateStr);
     const flags = await listFlagsForUser(selectedUser, { includeHidden: isAdmin });
 
     const logs = await listLogsForDate(selectedUser, selectedDateStr) as LogEntry[];
@@ -140,7 +141,7 @@ export default async function Diary(props: { searchParams: Promise<{ user?: stri
                         <div className="flex items-center bg-[#2a2a2a] rounded-md border border-[#333] px-3 py-2">
                             <Link href={`/diary?user=${selectedUser}&date=${getPrevDate()}`} className="text-gray-400 hover:text-white px-2">‹</Link>
                             <span className="text-white font-medium mx-2">
-                                {selectedDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: TRACKING_TIMEZONE })}
+                                {getEasternDateDisplay(selectedDate)}
                             </span>
                             <Link href={`/diary?user=${selectedUser}&date=${getNextDate()}`} className="text-gray-400 hover:text-white px-2">›</Link>
                         </div>
@@ -148,7 +149,7 @@ export default async function Diary(props: { searchParams: Promise<{ user?: stri
                             Today
                         </Link>
                         <TimeZoneClock
-                            timeZone={TRACKING_TIMEZONE}
+                            timeZone={EASTERN_TIMEZONE}
                             label={TRACKING_TIME_LABEL}
                             includeLabel={false}
                             includeOffset={false}

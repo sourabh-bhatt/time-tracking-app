@@ -124,6 +124,7 @@ export function listLogsForDate(userId: string, date: Date | string): Promise<Lo
 export function listLogsForDateRange(userId: string, startDate: Date | string, endDate: Date | string): Promise<LogRecord[]>;
 export function listFlagsForUser(userId: string, options?: { includeHidden?: boolean }): Promise<FlagRecord[]>;
 export function normalizeUserId(userId: string): string;
+export function parseDateKey(dateKey: string): Date;
 export function saveLogEntry(input: {
     id?: string;
     userId: string;

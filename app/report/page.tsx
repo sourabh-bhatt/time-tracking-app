@@ -2,14 +2,15 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import DownloadReportButton from "../components/DownloadReportButton";
 import TimeZoneClock from "../components/TimeZoneClock";
+import { EASTERN_TIMEZONE, getEasternDateShort, getEasternDateWithYear, getEasternWeekday } from "../components/timeZoneUtils";
 import {
     TRACKING_INTERVAL_SECONDS,
     TRACKING_TIME_LABEL,
-    TRACKING_TIMEZONE,
     addDays,
     countsTowardTrackedTime,
     getWeekStartDateKey,
     listLogsForDateRange,
+    parseDateKey,
     toDateParts,
 } from "../../lib/s3-storage";
 
@@ -28,10 +29,10 @@ async function getWeeklyReport(startDateKey: string, selectedUser: string) {
 
     for (let i = 0; i < 7; i += 1) {
         const dateKey = addDays(startDateKey, i);
-        const date = new Date(`${dateKey}T00:00:00.000Z`);
+        const date = parseDateKey(dateKey);
         dailyStats[dateKey] = {
             date: dateKey,
-            dayName: date.toLocaleDateString("en-US", { weekday: "long", timeZone: TRACKING_TIMEZONE }),
+            dayName: getEasternWeekday(date, "long"),
             totalTime: 0,
         };
     }
@@ -73,9 +74,9 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
     const getPrevWeek = () => addDays(startOfWeekKey, -7);
     const getNextWeek = () => addDays(startOfWeekKey, 7);
 
-    const startOfWeek = new Date(`${startOfWeekKey}T00:00:00.000Z`);
+    const startOfWeek = parseDateKey(startOfWeekKey);
     const weekEndKey = addDays(startOfWeekKey, 6);
-    const weekEnd = new Date(`${weekEndKey}T00:00:00.000Z`);
+    const weekEnd = parseDateKey(weekEndKey);
 
     return (
         <div className="min-h-screen bg-[#121212] text-gray-300 font-sans">
@@ -102,11 +103,11 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                     <div className="text-center md:text-left">
                         <h2 className="text-3xl font-bold text-white mb-2">Weekly Report</h2>
                         <p className="text-gray-400">
-                            {startOfWeek.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: TRACKING_TIMEZONE })}
+                            {getEasternDateShort(startOfWeek)}
                             {" - "}
-                            {weekEnd.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: TRACKING_TIMEZONE })}
+                            {getEasternDateWithYear(weekEnd)}
                             <TimeZoneClock
-                                timeZone={TRACKING_TIMEZONE}
+                                timeZone={EASTERN_TIMEZONE}
                                 label={TRACKING_TIME_LABEL}
                                 className="ml-2 text-xs tracking-[0.05em] text-sky-300"
                             />
@@ -139,7 +140,7 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                                 return (
                                     <tr key={day.date} className="hover:bg-[#252525] transition-colors">
                                         <td className="px-6 py-4 text-white font-medium whitespace-nowrap">
-                                            {new Date(`${day.date}T00:00:00.000Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: TRACKING_TIMEZONE })}
+                                            {getEasternDateShort(parseDateKey(day.date))}
                                         </td>
                                         <td className="px-6 py-4 text-gray-400 whitespace-nowrap">{day.dayName}</td>
                                         <td className="px-6 py-4 font-mono text-lg text-white whitespace-nowrap">

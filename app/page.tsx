@@ -6,7 +6,7 @@ import LivePresencePanel from "./components/LivePresencePanel";
 import TimeZoneClock from "./components/TimeZoneClock";
 import FlagButton from "./components/FlagButton";
 import FlagReviewPanel from "./components/FlagReviewPanel";
-import { getCompactTimeZoneDisplay, getHourInTimeZone, getTimeZoneRangeDisplay } from "./components/timeZoneUtils";
+import { EASTERN_TIMEZONE, getCompactTimeZoneDisplay, getEasternDateDisplay, getHourInTimeZone, getTimeZoneRangeDisplay } from "./components/timeZoneUtils";
 import { getManualEarnings, syncWeeklyReport } from "./actions";
 import {
   TRACKING_INTERVAL_SECONDS,
@@ -16,6 +16,7 @@ import {
   countTrackedLogs,
   getAllTimeAutoCount,
   getLatestLogDate,
+  parseDateKey,
   getPresenceSummaries,
   getWeekStartDateKey,
   listLogsForDate,
@@ -79,7 +80,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
   const requestedDateStr = searchParams.date || toDateParts(new Date()).dateKey;
   const latestLogDate = await getLatestLogDate(selectedUser);
   const selectedDateStr = searchParams.date || latestLogDate || requestedDateStr;
-  const selectedDate = new Date(`${selectedDateStr}T00:00:00.000Z`);
+  const selectedDate = parseDateKey(selectedDateStr);
   const presenceUsers = isAdmin ? ["sourabh", "prayash"] : [selectedUser];
   const initialPresence = await getPresenceSummaries(presenceUsers);
   const flags = await listFlagsForUser(selectedUser, { includeHidden: isAdmin });
@@ -175,15 +176,15 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
             <div className="flex items-center bg-[#2a2a2a] rounded-md border border-[#333] px-3 py-2">
               <Link href={`/?user=${selectedUser}&date=${getPrevDate()}`} className="text-gray-400 hover:text-white px-2">‹</Link>
               <span className="text-white font-medium mx-2">
-                {selectedDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: TRACKING_TIMEZONE })}
+                {getEasternDateDisplay(selectedDate)}
               </span>
               <Link href={`/?user=${selectedUser}&date=${getNextDate()}`} className="text-gray-400 hover:text-white px-2">›</Link>
             </div>
             <Link href={`/?user=${selectedUser}&date=${toDateParts(new Date()).dateKey}`} className="text-[#14a800] text-sm font-medium hover:underline">
               Today
             </Link>
-            <TimeZoneClock
-              timeZone={TRACKING_TIMEZONE}
+              <TimeZoneClock
+              timeZone={EASTERN_TIMEZONE}
               label={TRACKING_TIME_LABEL}
               includeLabel={false}
               includeOffset={false}

@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getTimeZoneDisplay } from "./timeZoneUtils";
+import { EASTERN_TIME_LABEL, EASTERN_TIMEZONE, getTimeZoneDisplay } from "./timeZoneUtils";
 
 export default function TimeZoneClock({
-    timeZone,
-    label,
+    timeZone = EASTERN_TIMEZONE,
+    label = EASTERN_TIME_LABEL,
     includeLabel = true,
     includeSeconds = false,
     includeOffset = true,
     className = "",
 }: {
-    timeZone: string;
-    label: string;
+    timeZone?: string;
+    label?: string;
     includeLabel?: boolean;
     includeSeconds?: boolean;
     includeOffset?: boolean;
