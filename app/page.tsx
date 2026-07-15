@@ -4,6 +4,8 @@ import ImageModal from "./components/ImageModal";
 import EarningsEditor from "./components/EarningsEditor";
 import LivePresencePanel from "./components/LivePresencePanel";
 import TimeZoneClock from "./components/TimeZoneClock";
+import FlagButton from "./components/FlagButton";
+import FlagReviewPanel from "./components/FlagReviewPanel";
 import { getTimeZoneDisplay } from "./components/timeZoneUtils";
 import { getManualEarnings, syncWeeklyReport } from "./actions";
 import {
@@ -18,6 +20,7 @@ import {
   getWeekStartDateKey,
   listLogsForDate,
   listLogsForDateRange,
+  listFlagsForUser,
   toDateParts,
 } from "../lib/s3-storage";
 
@@ -69,6 +72,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
   const selectedDate = new Date(`${selectedDateStr}T00:00:00.000Z`);
   const presenceUsers = isAdmin ? ["sourabh", "prayash"] : [selectedUser];
   const initialPresence = await getPresenceSummaries(presenceUsers);
+  const flags = await listFlagsForUser(selectedUser, { includeHidden: isAdmin });
 
   const logs = await listLogsForDate(selectedUser, selectedDateStr) as LogEntry[];
   const weekStartKey = getWeekStartDateKey(selectedDateStr);
@@ -159,6 +163,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
 
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
         <LivePresencePanel initialPresence={initialPresence} users={presenceUsers} />
+        <FlagReviewPanel flags={flags} isAdmin={isAdmin} />
 
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-[#1e1e1e] p-4 rounded-xl border border-[#333] gap-6 md:gap-0">
           <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto justify-center">
@@ -268,7 +273,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                         </h3>
                       </div>
                       <div className="text-white font-medium">{memo}</div>
-                      <button className="text-gray-500 hover:text-white">...</button>
+                      {isAdmin && <FlagButton userId={selectedUser} logIds={memoLogs.map((log) => log._id)} targetType="time-block" startTimestamp={memoLogs[0].timestamp} endTimestamp={memoLogs[memoLogs.length - 1].timestamp} memo={memo} />}
                     </div>
 
                     <div className="p-4 md:p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -300,6 +305,8 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                                 </div>
                               </div>
                             </ImageModal>
+
+                            {isAdmin && <div className="mt-2 flex justify-end"><FlagButton userId={selectedUser} logIds={[log._id]} targetType="screenshot" startTimestamp={log.timestamp} endTimestamp={log.timestamp} memo={memo} /></div>}
 
                             <div className="mt-2 space-y-1">
                               <div className="flex gap-[2px] h-1.5">

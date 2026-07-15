@@ -17,6 +17,9 @@ const presenceBadge = document.getElementById('presenceBadge');
 const presenceLabel = document.getElementById('presenceLabel');
 const presenceMeta = document.getElementById('presenceMeta');
 const timeZoneHint = document.getElementById('timeZoneHint');
+const flagsSection = document.getElementById('flagsSection');
+const flagsList = document.getElementById('flagsList');
+const flagsCount = document.getElementById('flagsCount');
 
 const earningsModal = document.getElementById('earnings-modal');
 const closeEarningsModal = document.getElementById('closeEarningsModal');
@@ -32,6 +35,7 @@ let isTracking = false;
 let trackingTimeZone = 'America/New_York';
 let trackingTimeLabel = 'Eastern Time';
 let idleThresholdSeconds = 300;
+let knownFlagIds = new Set();
 
 function pad(num) {
     return num.toString().padStart(2, '0');
@@ -263,6 +267,21 @@ ipcRenderer.on('update-stats', (_event, stats) => {
 
 ipcRenderer.on('presence-update', (_event, presence) => {
     renderPresence(presence);
+});
+
+ipcRenderer.on('flags-update', (_event, flags) => {
+    const visibleFlags = Array.isArray(flags) ? flags.filter((flag) => !flag.hidden) : [];
+    flagsSection.style.display = visibleFlags.length ? 'block' : 'none';
+    flagsCount.textContent = String(visibleFlags.length);
+    flagsList.innerHTML = visibleFlags.map((flag) => `<article class="flag-item"><div class="flag-kind">${flag.targetType === 'time-block' ? 'TIME BLOCK' : 'SCREENSHOT'}</div><div class="flag-reason"></div>${flag.employeeResponse ? '<div class="flag-response"></div>' : ''}</article>`).join('');
+    visibleFlags.forEach((flag, index) => {
+        const item = flagsList.children[index];
+        item.querySelector('.flag-reason').textContent = flag.reason;
+        const response = item.querySelector('.flag-response');
+        if (response) response.textContent = `Your response: ${flag.employeeResponse}`;
+        if (!knownFlagIds.has(flag._id)) new Notification('Admin review flag', { body: flag.reason });
+    });
+    knownFlagIds = new Set(visibleFlags.map((flag) => flag._id));
 });
 
 ipcRenderer.on('play-sound', () => {

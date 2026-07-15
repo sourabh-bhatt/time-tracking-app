@@ -12,6 +12,7 @@ const {
     TRACKING_TIMEZONE,
     deleteLogById,
     getTrackingStats,
+    listFlagsForUser,
     getUserState,
     normalizeUserId,
     saveLogEntry,
@@ -459,6 +460,16 @@ async function fetchStats(userId) {
     }
 }
 
+async function fetchFlags(userId) {
+    if (!userId || !mainWindow || mainWindow.isDestroyed()) return;
+    try {
+        mainWindow.webContents.send('flags-update', await listFlagsForUser(userId));
+    } catch (error) {
+        console.error('Error fetching flags:', error);
+        logToFile(`Error fetching flags: ${error.message}`);
+    }
+}
+
 function scheduleCapture(delayMs, callback) {
     const timeoutId = setTimeout(async () => {
         scheduledCaptureTimeoutIds.delete(timeoutId);
@@ -673,6 +684,7 @@ function ensureHeartbeatLoop() {
         }
 
         queuePresenceSync('heartbeat');
+        fetchFlags(currentUserId);
     }, HEARTBEAT_INTERVAL_MS);
 }
 
@@ -721,6 +733,7 @@ ipcMain.on('user-login', async (event, userId) => {
     queuePresenceSync('login');
 
     await fetchStats(currentUserId);
+    await fetchFlags(currentUserId);
 });
 
 ipcMain.on('update-memo', (_event, memo) => {

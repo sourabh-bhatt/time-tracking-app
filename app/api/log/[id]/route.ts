@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { deleteLogById } from "../../../../lib/s3-storage";
+import { canAccessUser, getSessionContext } from "../../../../lib/auth";
 
 export async function DELETE(
     request: Request,
@@ -14,6 +15,12 @@ export async function DELETE(
             return NextResponse.json({ error: "ID required" }, { status: 400 });
         }
 
+        const { getLogById } = await import("../../../../lib/s3-storage");
+        const record = await getLogById(id);
+        const session = await getSessionContext();
+        if (record && !canAccessUser(session, record.userId)) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
         const deleted = await deleteLogById(id);
 
         if (!deleted) {

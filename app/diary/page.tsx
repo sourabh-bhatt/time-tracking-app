@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import ImageModal from "../components/ImageModal";
+import FlagReviewPanel from "../components/FlagReviewPanel";
 import TimeZoneClock from "../components/TimeZoneClock";
 import { getTimeZoneDisplay } from "../components/timeZoneUtils";
 import {
@@ -12,6 +14,7 @@ import {
     getWeekStartDateKey,
     listLogsForDate,
     listLogsForDateRange,
+    listFlagsForUser,
     toDateParts,
 } from "../../lib/s3-storage";
 
@@ -46,12 +49,16 @@ function formatTrackingTimestamp(timestamp: string) {
 }
 
 export default async function Diary(props: { searchParams: Promise<{ user?: string; date?: string }> }) {
+    const cookieStore = await cookies();
+    const isAdmin = cookieStore.has("admin_session");
+    const employeeUser = cookieStore.has("sourabh_session") ? "sourabh" : "prayash";
     const searchParams = await props.searchParams;
-    const selectedUser = searchParams.user || "sourabh";
+    const selectedUser = isAdmin ? (searchParams.user || "sourabh") : employeeUser;
     const requestedDateStr = searchParams.date || toDateParts(new Date()).dateKey;
     const latestLogDate = await getLatestLogDate(selectedUser);
     const selectedDateStr = searchParams.date || latestLogDate || requestedDateStr;
     const selectedDate = new Date(`${selectedDateStr}T00:00:00.000Z`);
+    const flags = await listFlagsForUser(selectedUser, { includeHidden: isAdmin });
 
     const logs = await listLogsForDate(selectedUser, selectedDateStr) as LogEntry[];
     const weekStartKey = getWeekStartDateKey(selectedDateStr);
@@ -122,6 +129,7 @@ export default async function Diary(props: { searchParams: Promise<{ user?: stri
             </header>
 
             <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
+                <FlagReviewPanel flags={flags} isAdmin={isAdmin} />
                 <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-[#1e1e1e] p-4 rounded-xl border border-[#333] gap-6 md:gap-0">
                     <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto justify-center">
                         <div className="flex items-center bg-[#2a2a2a] rounded-md border border-[#333] px-3 py-2">

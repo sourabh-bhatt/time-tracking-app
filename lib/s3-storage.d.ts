@@ -80,6 +80,24 @@ export interface TrackingStats {
     weeklyLimitHours: number;
 }
 
+export interface FlagRecord {
+    _id: string;
+    userId: string;
+    targetType: "screenshot" | "time-block";
+    logIds: string[];
+    reason: string;
+    memo: string;
+    startTimestamp: string | null;
+    endTimestamp: string | null;
+    createdAt: string;
+    createdBy: "admin";
+    employeeResponse: string;
+    respondedAt: string | null;
+    hidden: boolean;
+    hiddenAt: string | null;
+    hiddenBy: string | null;
+}
+
 export const IDLE_THRESHOLD_SECONDS: number;
 export const PRESENCE_STALE_SECONDS: number;
 export const TRACKING_INTERVAL_SECONDS: number;
@@ -88,10 +106,12 @@ export const TRACKING_TIMEZONE: string;
 export function addDays(dateKey: string, days: number): string;
 export function countTrackedLogs(records: Array<Partial<LogRecord>>): number;
 export function countsTowardTrackedTime(record: Partial<LogRecord>): boolean;
+export function createFlag(input: Partial<FlagRecord> & { userId: string; reason: string }): Promise<FlagRecord>;
 export function deleteLogById(id: string): Promise<LogRecord | null>;
 export function getAllTimeAutoCount(userId: string): Promise<number>;
 export function getDateKeysInRange(startDateKey: string, endDateKey: string): string[];
 export function getImageById(id: string): Promise<{ buffer: Buffer; contentType: string } | null>;
+export function getFlagById(id: string): Promise<FlagRecord | null>;
 export function getLogById(id: string): Promise<LogRecord | null>;
 export function getPresenceSummary(userId: string, now?: Date | string): Promise<PresenceSummary>;
 export function getPresenceSummaries(userIds: string[], now?: Date | string): Promise<PresenceSummary[]>;
@@ -101,6 +121,7 @@ export function getLatestLogDate(userId: string): Promise<string | null>;
 export function getWeekStartDateKey(date: Date | string): string;
 export function listLogsForDate(userId: string, date: Date | string): Promise<LogRecord[]>;
 export function listLogsForDateRange(userId: string, startDate: Date | string, endDate: Date | string): Promise<LogRecord[]>;
+export function listFlagsForUser(userId: string, options?: { includeHidden?: boolean }): Promise<FlagRecord[]>;
 export function normalizeUserId(userId: string): string;
 export function saveLogEntry(input: {
     id?: string;
@@ -117,3 +138,4 @@ export function saveLogEntry(input: {
 }): Promise<LogRecord>;
 export function saveUserState(userId: string, updates: Partial<UserState>): Promise<UserState>;
 export function toDateParts(date: Date | string): { year: string; month: string; day: string; dateKey: string };
+export function updateFlagById(id: string, updates: Partial<FlagRecord>): Promise<FlagRecord | null>;

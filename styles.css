@@ -486,3 +486,13 @@ footer {
     box-sizing: border-box;
     /* Fix for width: 100% padding issue */
 }
+
+.flags-section { margin: 0 0 18px; padding: 12px; border: 1px solid rgba(245, 158, 11, .45); border-radius: 8px; background: rgba(245, 158, 11, .08); }
+.flags-heading { display: flex; justify-content: space-between; color: #fcd34d; font-weight: 700; font-size: .9rem; }
+.flags-count { min-width: 22px; padding: 2px 7px; border-radius: 999px; background: #f59e0b; color: #111; text-align: center; }
+.flags-list { max-height: 150px; overflow-y: auto; }
+.flag-item { margin-top: 9px; padding-top: 9px; border-top: 1px solid rgba(245, 158, 11, .2); }
+.flag-kind { color: #fbbf24; font-size: .65rem; letter-spacing: .08em; }
+.flag-reason { margin-top: 3px; color: #fff; font-size: .82rem; line-height: 1.35; }
+.flag-response { margin-top: 5px; color: #7dd3fc; font-size: .75rem; }
+.flags-note { margin-top: 9px; color: #aaa; font-size: .7rem; }

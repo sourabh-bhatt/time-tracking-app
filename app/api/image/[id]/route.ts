@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getImageById } from "../../../../lib/s3-storage";
+import { getImageById, getLogById } from "../../../../lib/s3-storage";
+import { canAccessUser, getSessionContext } from "../../../../lib/auth";
 
 export async function GET(
     request: NextRequest,
@@ -12,6 +13,10 @@ export async function GET(
             return new NextResponse("Invalid ID", { status: 400 });
         }
 
+        const record = await getLogById(id);
+        if (record && !canAccessUser(await getSessionContext(), record.userId)) {
+            return new NextResponse("Forbidden", { status: 403 });
+        }
         const image = await getImageById(id);
 
         if (!image) {
