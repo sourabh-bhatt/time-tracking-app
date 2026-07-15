@@ -6,7 +6,7 @@ import LivePresencePanel from "./components/LivePresencePanel";
 import TimeZoneClock from "./components/TimeZoneClock";
 import FlagButton from "./components/FlagButton";
 import FlagReviewPanel from "./components/FlagReviewPanel";
-import { getTimeZoneDisplay } from "./components/timeZoneUtils";
+import { getCompactTimeZoneDisplay } from "./components/timeZoneUtils";
 import { getManualEarnings, syncWeeklyReport } from "./actions";
 import {
   TRACKING_INTERVAL_SECONDS,
@@ -48,10 +48,7 @@ function countTimeLogs(logs: LogEntry[]) {
 }
 
 function formatTrackingTimestamp(timestamp: string) {
-  return getTimeZoneDisplay(new Date(timestamp), TRACKING_TIMEZONE, TRACKING_TIME_LABEL, {
-    includeLabel: true,
-    includeSeconds: true,
-  });
+  return getCompactTimeZoneDisplay(new Date(timestamp), TRACKING_TIMEZONE);
 }
 
 export default async function Home(props: { searchParams: Promise<{ user?: string; date?: string }> }) {
@@ -267,9 +264,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
                           {formatTrackingTimestamp(memoLogs[0].timestamp)}
                           {" - "}
                           {formatTrackingTimestamp(memoLogs[memoLogs.length - 1].timestamp)}
-                          <span className="text-gray-400 font-normal ml-2">
-                            ({countTimeLogs(memoLogs) * 10} mins)
-                          </span>
+                          <span className="text-gray-400 font-normal ml-2">{countTimeLogs(memoLogs) > 0 ? `(${countTimeLogs(memoLogs) * 10} mins)` : "(Evidence only)"}</span>
                         </h3>
                       </div>
                       <div className="text-white font-medium">{memo}</div>

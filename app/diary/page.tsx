@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import ImageModal from "../components/ImageModal";
 import FlagReviewPanel from "../components/FlagReviewPanel";
 import TimeZoneClock from "../components/TimeZoneClock";
-import { getTimeZoneDisplay } from "../components/timeZoneUtils";
+import { getCompactTimeZoneDisplay } from "../components/timeZoneUtils";
 import {
     TRACKING_INTERVAL_SECONDS,
     TRACKING_TIME_LABEL,
@@ -42,10 +42,7 @@ function countTimeLogs(logs: LogEntry[]) {
 }
 
 function formatTrackingTimestamp(timestamp: string) {
-    return getTimeZoneDisplay(new Date(timestamp), TRACKING_TIMEZONE, TRACKING_TIME_LABEL, {
-        includeLabel: true,
-        includeSeconds: true,
-    });
+    return getCompactTimeZoneDisplay(new Date(timestamp), TRACKING_TIMEZONE);
 }
 
 export default async function Diary(props: { searchParams: Promise<{ user?: string; date?: string }> }) {
@@ -204,9 +201,7 @@ export default async function Diary(props: { searchParams: Promise<{ user?: stri
                                                     {formatTrackingTimestamp(memoLogs[0].timestamp)}
                                                     {" - "}
                                                     {formatTrackingTimestamp(memoLogs[memoLogs.length - 1].timestamp)}
-                                                    <span className="text-gray-400 font-normal ml-2">
-                                                        ({countTimeLogs(memoLogs) * 10} mins)
-                                                    </span>
+                                                    <span className="text-gray-400 font-normal ml-2">{countTimeLogs(memoLogs) > 0 ? `(${countTimeLogs(memoLogs) * 10} mins)` : "(Evidence only)"}</span>
                                                 </h3>
                                             </div>
                                             <div className="text-white font-medium">{memo}</div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getTimeZoneDisplay } from "./timeZoneUtils";
+import { getTimeZoneAbbreviation, getTimeZoneDisplay } from "./timeZoneUtils";
 
 type PresenceSummary = {
     userId: string;
@@ -157,9 +157,9 @@ export default function LivePresencePanel({
                                 : `Last seen ${formatElapsed(entry.heartbeatAgeSeconds)} ago`;
 
                 const secondaryDetail = entry.isTracking && entry.trackingStartedAt
-                    ? `Tracking since ${formatTime(entry.trackingStartedAt, entry.timeZone)} ${entry.timeZoneLabel}`
+                    ? `Tracking since ${formatTime(entry.trackingStartedAt, entry.timeZone)} ${getTimeZoneAbbreviation(new Date(entry.trackingStartedAt), entry.timeZone)}`
                     : entry.lastHeartbeatAt
-                        ? `Heartbeat ${formatTime(entry.lastHeartbeatAt, entry.timeZone)} ${entry.timeZoneLabel}`
+                        ? `Heartbeat ${formatTime(entry.lastHeartbeatAt, entry.timeZone)} ${getTimeZoneAbbreviation(new Date(entry.lastHeartbeatAt), entry.timeZone)}`
                         : "Waiting for desktop app login heartbeat";
                 const timeZoneDisplay = getTimeZoneDisplay(new Date(), entry.timeZone, entry.timeZoneLabel, {
                     includeLabel: true,

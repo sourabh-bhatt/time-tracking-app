@@ -49,3 +49,12 @@ export function getTimeZoneDisplay(
 
     return `${timeText} ${zone} \u00b7 ${offset}`;
 }
+
+export function getCompactTimeZoneDisplay(date: Date, timeZone: string) {
+    const timeText = date.toLocaleTimeString("en-US", {
+        timeZone,
+        hour: "numeric",
+        minute: "2-digit",
+    });
+    return `${timeText} ${getTimeZoneAbbreviation(date, timeZone)}`;
+}
