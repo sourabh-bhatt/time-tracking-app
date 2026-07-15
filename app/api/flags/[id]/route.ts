@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionContext } from "../../../../lib/auth";
-import { getFlagById, updateFlagById } from "../../../../lib/s3-storage";
+import { deleteFlagById, getFlagById, updateFlagById } from "../../../../lib/s3-storage";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
     const session = await getSessionContext();
@@ -17,4 +17,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!response) return NextResponse.json({ error: "Response required" }, { status: 400 });
     const updated = await updateFlagById(flag._id, { employeeResponse: response, respondedAt: new Date().toISOString() });
     return NextResponse.json({ flag: updated });
+}
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+    const session = await getSessionContext();
+    if (session?.role !== "admin") return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    const deleted = await deleteFlagById((await params).id);
+    if (!deleted) return NextResponse.json({ error: "Flag not found" }, { status: 404 });
+    return NextResponse.json({ success: true });
 }

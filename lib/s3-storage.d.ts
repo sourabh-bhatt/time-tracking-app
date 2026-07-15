@@ -107,6 +107,7 @@ export function addDays(dateKey: string, days: number): string;
 export function countTrackedLogs(records: Array<Partial<LogRecord>>): number;
 export function countsTowardTrackedTime(record: Partial<LogRecord>): boolean;
 export function createFlag(input: Partial<FlagRecord> & { userId: string; reason: string }): Promise<FlagRecord>;
+export function deleteFlagById(id: string): Promise<FlagRecord | null>;
 export function deleteLogById(id: string): Promise<LogRecord | null>;
 export function getAllTimeAutoCount(userId: string): Promise<number>;
 export function getDateKeysInRange(startDateKey: string, endDateKey: string): string[];
