@@ -30,6 +30,7 @@ export interface UserState {
     isOnline: boolean;
     isTracking: boolean;
     isIdle: boolean;
+    onCall: boolean;
     trackingStartedAt: string | null;
     activeSince: string | null;
     idleSince: string | null;
@@ -41,11 +42,12 @@ export interface UserState {
 
 export interface PresenceSummary {
     userId: string;
-    status: "offline" | "tracking-off" | "idle" | "active";
+    status: "offline" | "tracking-off" | "idle" | "active" | "on-call";
     statusLabel: string;
     isOnline: boolean;
     isTracking: boolean;
     isIdle: boolean;
+    onCall: boolean;
     platform: string | null;
     trackingStartedAt: string | null;
     activeSince: string | null;

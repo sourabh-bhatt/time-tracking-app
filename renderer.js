@@ -17,6 +17,8 @@ const presenceBadge = document.getElementById('presenceBadge');
 const presenceLabel = document.getElementById('presenceLabel');
 const presenceMeta = document.getElementById('presenceMeta');
 const timeZoneHint = document.getElementById('timeZoneHint');
+const onCallToggle = document.getElementById('onCallToggle');
+const callModeMeta = document.getElementById('callModeMeta');
 const flagsSection = document.getElementById('flagsSection');
 const flagsList = document.getElementById('flagsList');
 const flagsCount = document.getElementById('flagsCount');
@@ -34,7 +36,8 @@ let envUser = '';
 let isTracking = false;
 let trackingTimeZone = 'America/New_York';
 let trackingTimeLabel = 'Eastern Time';
-let idleThresholdSeconds = 300;
+let idleThresholdSeconds = 900;
+let isOnCall = false;
 let knownFlagIds = new Set();
 let hasAutoLoggedEnvUser = false;
 
@@ -161,13 +164,18 @@ function renderLoginButtons() {
 }
 
 function setPresenceTheme(theme) {
-    presenceBadge.classList.remove('presence-active', 'presence-idle', 'presence-offline', 'presence-paused');
+    presenceBadge.classList.remove('presence-active', 'presence-idle', 'presence-offline', 'presence-paused', 'presence-on-call');
     presenceBadge.classList.add(theme);
 }
 
 function renderPresence(presence) {
     isTracking = Boolean(presence.isTracking);
+    isOnCall = Boolean(presence.onCall);
     toggleBtn.checked = isTracking;
+    if (onCallToggle) {
+        onCallToggle.checked = Boolean(isTracking && isOnCall);
+        onCallToggle.disabled = !isTracking;
+    }
     timerDisplay.textContent = formatClock(Number(presence.sessionWorkedSeconds || 0));
 
     let nextLabel = 'Offline';
@@ -178,6 +186,10 @@ function renderPresence(presence) {
         nextLabel = 'Tracker Off';
         nextMeta = `Connected. Turn tracking on to start logging in ${trackingTimeLabel}.`;
         nextTheme = 'presence-paused';
+    } else if (presence.isTracking && presence.onCall) {
+        nextLabel = 'On Call';
+        nextMeta = `On call mode is active. Idle will start after ${Math.floor(idleThresholdSeconds / 60)} minutes only when call mode is turned off.`;
+        nextTheme = 'presence-on-call';
     } else if (presence.isTracking && presence.isIdle) {
         nextLabel = 'Idle';
         nextMeta = `Idle for ${formatDurationShort(presence.idleDurationSeconds)}. Screenshots and time are paused.`;
@@ -192,6 +204,13 @@ function renderPresence(presence) {
     presenceLabel.textContent = nextLabel;
     presenceMeta.textContent = nextMeta;
     setPresenceTheme(nextTheme);
+    if (callModeMeta) {
+        callModeMeta.textContent = isTracking
+            ? (presence.onCall
+                ? 'On call mode is active. Tracking will keep running without keyboard or mouse activity.'
+                : `Idle starts after ${Math.floor(idleThresholdSeconds / 60)} minutes unless On Call is enabled.`)
+            : 'Start tracking first, then enable On Call if you are in a meeting or phone call.';
+    }
     updateTimeZoneHint();
 }
 
@@ -203,6 +222,10 @@ ipcRenderer.on('tracking-config', (_event, config) => {
     trackingTimeZone = config.trackingTimeZone || trackingTimeZone;
     trackingTimeLabel = config.trackingTimeLabel || trackingTimeLabel;
     idleThresholdSeconds = Number(config.idleThresholdSeconds || idleThresholdSeconds);
+    isOnCall = Boolean(config.onCall);
+    if (onCallToggle) {
+        onCallToggle.checked = isOnCall;
+    }
     updateTodayLabel();
     updateTimeZoneHint();
 });
@@ -257,6 +280,13 @@ toggleBtn.addEventListener('change', (event) => {
         stopTracking();
     }
 });
+
+if (onCallToggle) {
+    onCallToggle.addEventListener('change', (event) => {
+        const nextValue = Boolean(event.target.checked);
+        ipcRenderer.send('set-on-call', nextValue);
+    });
+}
 
 memoInput.addEventListener('change', () => {
     const memo = memoInput.value;

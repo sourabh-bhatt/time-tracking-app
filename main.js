@@ -33,6 +33,7 @@ let sessionWorkedSeconds = 0;
 let trackingStartedAt = null;
 let activeSince = null;
 let idleSince = null;
+let onCall = false;
 let lastInputAt = null;
 let inputMonitoringReady = false;
 let exitPresenceSaved = false;
@@ -128,6 +129,10 @@ function isIdleAt(now = Date.now()) {
         return false;
     }
 
+    if (onCall) {
+        return false;
+    }
+
     if (!lastInputAt) {
         return true;
     }
@@ -144,6 +149,7 @@ function buildPresenceState(now = Date.now()) {
         isOnline: Boolean(currentUserId),
         isTracking,
         isIdle: idle,
+        onCall: Boolean(isTracking && onCall),
         trackingStartedAt: isTracking ? trackingStartedAt : null,
         activeSince: nextActiveSince,
         idleSince: nextIdleSince,
@@ -160,6 +166,7 @@ function buildRendererPresence(now = Date.now()) {
         ...presence,
         sessionWorkedSeconds,
         idleThresholdSeconds: IDLE_THRESHOLD_SECONDS,
+        onCall: Boolean(isTracking && onCall),
         trackingTimeZone: TRACKING_TIMEZONE,
         trackingTimeLabel: TRACKING_TIME_LABEL,
     };
@@ -172,6 +179,7 @@ function sendTrackingConfig() {
         trackingTimeZone: TRACKING_TIMEZONE,
         trackingTimeLabel: TRACKING_TIME_LABEL,
         idleThresholdSeconds: IDLE_THRESHOLD_SECONDS,
+        onCall,
     });
 }
 
@@ -237,12 +245,20 @@ function updateIdleState(now = Date.now()) {
         return false;
     }
 
+    if (onCall) {
+        if (!activeSince) {
+            activeSince = toIso(lastInputAt || now);
+        }
+        idleSince = null;
+        return false;
+    }
+
     if (isIdleAt(now)) {
         if (!idleSince) {
             idleSince = getIdleStartIso(now);
             activeSince = null;
             resetActivityCounters();
-            logToFile('User marked idle after 5 minutes of inactivity. Screenshots and time are paused.');
+            logToFile('User marked idle after 15 minutes of inactivity. Screenshots and time are paused.');
             queuePresenceSync('idle');
         }
 
@@ -296,6 +312,19 @@ function syncSystemActivity(now = Date.now()) {
             queuePresenceSync('activity-resumed');
         }
     }
+}
+
+async function setOnCallMode(nextOnCall) {
+    onCall = Boolean(nextOnCall && isTracking);
+
+    if (onCall) {
+        activeSince = activeSince || toIso(lastInputAt || Date.now());
+        idleSince = null;
+    }
+
+    sendTrackingConfig();
+    sendPresenceUpdate();
+    queuePresenceSync(onCall ? 'on-call-enabled' : 'on-call-disabled');
 }
 
 function recordInput(counterKey) {
@@ -574,7 +603,7 @@ async function captureAndLog(type = 'auto', options = {}) {
     syncSystemActivity(captureStartedAt);
 
     if (updateIdleState(captureStartedAt)) {
-        logToFile(`Skipped ${type} screenshot because the user has been idle for 5 minutes.`);
+        logToFile(`Skipped ${type} screenshot because the user has been idle for 15 minutes.`);
         return null;
     }
 
@@ -717,6 +746,7 @@ async function markUserOffline() {
             isOnline: false,
             isTracking: false,
             isIdle: false,
+            onCall: false,
             trackingStartedAt: null,
             activeSince: null,
             idleSince: null,
@@ -743,6 +773,7 @@ ipcMain.on('user-login', async (event, userId) => {
     trackingStartedAt = null;
     activeSince = null;
     idleSince = null;
+    onCall = false;
     lastInputAt = Date.now();
 
     console.log(`User logged in: ${currentUserId}`);
@@ -759,15 +790,21 @@ ipcMain.on('update-memo', (_event, memo) => {
     currentMemo = memo;
 });
 
-ipcMain.on('start-tracking', () => {
+ipcMain.on('set-on-call', async (_event, value) => {
+    await setOnCallMode(value);
+});
+
+ipcMain.on('start-tracking', async () => {
     if (isTracking) return;
 
     const now = Date.now();
+    const state = currentUserId ? await getUserState(currentUserId) : null;
     isTracking = true;
     sessionWorkedSeconds = 0;
     trackingStartedAt = toIso(now);
     activeSince = toIso(now);
     idleSince = null;
+    onCall = Boolean(state?.onCall);
     lastInputAt = getSystemIdleSnapshot(now)?.lastActivityAt || now;
     resetActivityCounters();
 
@@ -784,6 +821,7 @@ ipcMain.on('stop-tracking', async () => {
     trackingStartedAt = null;
     activeSince = null;
     idleSince = null;
+    onCall = false;
     clearTrackingSchedule();
 
     console.log('Tracking stopped');
