@@ -11,6 +11,7 @@ import {
     addDays,
     countTrackedLogs,
     getLatestLogDate,
+    getTrackingStats,
     parseDateKey,
     getWeekStartDateKey,
     listLogsForDate,
@@ -74,8 +75,8 @@ export default async function Diary(props: { searchParams: Promise<{ user?: stri
     const logs = await listLogsForDate(selectedUser, selectedDateStr) as LogEntry[];
     const weekStartKey = getWeekStartDateKey(selectedDateStr);
     const weekLogs = await listLogsForDateRange(selectedUser, weekStartKey, selectedDateStr) as LogEntry[];
-    const weeklyCount = countTimeLogs(weekLogs);
-    const weeklySeconds = weeklyCount * TRACKING_INTERVAL_SECONDS;
+    const trackingStats = await getTrackingStats(selectedUser, selectedDateStr);
+    const weeklySeconds = trackingStats.weekSeconds;
     const weeklyHours = Math.floor(weeklySeconds / 3600);
     const weeklyMinutes = Math.floor((weeklySeconds % 3600) / 60);
 
@@ -91,7 +92,7 @@ export default async function Diary(props: { searchParams: Promise<{ user?: stri
         logsByHourAndMemo[hour][memo].push(log);
     });
 
-    const totalSeconds = countTimeLogs(logs) * TRACKING_INTERVAL_SECONDS;
+    const totalSeconds = trackingStats.todaySeconds;
     const totalHours = Math.floor(totalSeconds / 3600);
     const totalMinutes = Math.floor((totalSeconds % 3600) / 60);
 

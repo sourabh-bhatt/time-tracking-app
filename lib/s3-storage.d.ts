@@ -25,6 +25,7 @@ export interface UserState {
     manual_weekly_paid: number;
     manual_weekly_pending: number;
     manual_total_pending: number;
+    manual_daily_seconds: Record<string, number>;
     allTimeAutoCount: number;
     lastLogDate: string | null;
     isOnline: boolean;

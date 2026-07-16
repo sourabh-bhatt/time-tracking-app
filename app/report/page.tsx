@@ -7,11 +7,11 @@ import {
     TRACKING_INTERVAL_SECONDS,
     TRACKING_TIME_LABEL,
     addDays,
-    countsTowardTrackedTime,
+    getTrackingStats,
     getWeekStartDateKey,
-    listLogsForDateRange,
     parseDateKey,
     toDateParts,
+    getUserState,
 } from "../../lib/s3-storage";
 
 export const dynamic = "force-dynamic";
@@ -24,26 +24,28 @@ interface DailyStat {
 
 async function getWeeklyReport(startDateKey: string, selectedUser: string) {
     const weekEndKey = addDays(startDateKey, 6);
-    const logs = await listLogsForDateRange(selectedUser, startDateKey, weekEndKey);
+    const [logs, state] = await Promise.all([
+        import("../../lib/s3-storage").then(({ listLogsForDateRange }) => listLogsForDateRange(selectedUser, startDateKey, weekEndKey)),
+        getUserState(selectedUser),
+    ]);
     const dailyStats: { [key: string]: DailyStat } = {};
+    const trackedSecondsByDateKey = logs.reduce((acc, log) => {
+        if (log.countsTowardTime) {
+            acc[log.dateKey] = (acc[log.dateKey] || 0) + TRACKING_INTERVAL_SECONDS;
+        }
+        return acc;
+    }, {} as Record<string, number>);
 
     for (let i = 0; i < 7; i += 1) {
         const dateKey = addDays(startDateKey, i);
         const date = parseDateKey(dateKey);
+        const overrideSeconds = state.manual_daily_seconds?.[dateKey];
         dailyStats[dateKey] = {
             date: dateKey,
             dayName: getEasternWeekday(date, "long"),
-            totalTime: 0,
+            totalTime: Number.isFinite(Number(overrideSeconds)) ? Number(overrideSeconds) : Number(trackedSecondsByDateKey[dateKey] || 0),
         };
     }
-
-    logs.forEach((log) => {
-        if (countsTowardTrackedTime(log)) {
-            if (dailyStats[log.dateKey]) {
-                dailyStats[log.dateKey].totalTime += TRACKING_INTERVAL_SECONDS;
-            }
-        }
-    });
 
     return Object.values(dailyStats).sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -68,14 +70,15 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
 
     const dateParam = searchParams.date || toDateParts(new Date()).dateKey;
     const startOfWeekKey = getWeekStartDateKey(dateParam);
+    const weekEndKey = addDays(startOfWeekKey, 6);
     const stats = await getWeeklyReport(startOfWeekKey, selectedUser);
-    const totalTimeWeek = stats.reduce((acc, curr) => acc + curr.totalTime, 0);
+    const trackingStats = await getTrackingStats(selectedUser, weekEndKey);
+    const totalTimeWeek = trackingStats.weekSeconds;
 
     const getPrevWeek = () => addDays(startOfWeekKey, -7);
     const getNextWeek = () => addDays(startOfWeekKey, 7);
 
     const startOfWeek = parseDateKey(startOfWeekKey);
-    const weekEndKey = addDays(startOfWeekKey, 6);
     const weekEnd = parseDateKey(weekEndKey);
 
     return (

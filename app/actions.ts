@@ -6,10 +6,9 @@ import { getEasternWeekday } from "./components/timeZoneUtils";
 import {
     TRACKING_INTERVAL_SECONDS,
     addDays,
-    countsTowardTrackedTime,
     getUserState,
+    getTrackingStats,
     getWeekStartDateKey,
-    listLogsForDateRange,
     parseDateKey,
     saveUserState,
 } from "../lib/s3-storage";
@@ -37,21 +36,31 @@ export async function getManualEarnings(userId: string) {
 export async function syncWeeklyReport(userId: string, dateStr: string) {
     const weekStartKey = getWeekStartDateKey(dateStr);
     const weekEndKey = addDays(weekStartKey, 6);
-    const logs = await listLogsForDateRange(userId, weekStartKey, weekEndKey);
+    const [logs, state, trackingStats] = await Promise.all([
+        import("../lib/s3-storage").then(({ listLogsForDateRange }) => listLogsForDateRange(userId, weekStartKey, weekEndKey)),
+        getUserState(userId),
+        getTrackingStats(userId, weekEndKey),
+    ]);
 
     const userCap = userId.charAt(0).toUpperCase() + userId.slice(1);
     const headers = ["Date", "Day", `${userCap} Hours`];
     if (userId === "sourabh") headers.push(`${userCap} Earnings ($)`);
 
     const rows: (string | number)[][] = [headers];
-    let totalSeconds = 0;
+    const trackedSecondsByDateKey = logs.reduce((acc, log) => {
+        if (log.countsTowardTime) {
+            acc[log.dateKey] = (acc[log.dateKey] || 0) + TRACKING_INTERVAL_SECONDS;
+        }
+        return acc;
+    }, {} as Record<string, number>);
 
     for (let i = 0; i < 7; i += 1) {
         const currentDateKey = addDays(weekStartKey, i);
         const currentDate = parseDateKey(currentDateKey);
-        const dayLogs = logs.filter((log) => log.dateKey === currentDateKey && countsTowardTrackedTime(log));
-        const seconds = dayLogs.length * TRACKING_INTERVAL_SECONDS;
-        totalSeconds += seconds;
+        const overrideSeconds = state.manual_daily_seconds?.[currentDateKey];
+        const seconds = Number.isFinite(Number(overrideSeconds))
+            ? Number(overrideSeconds)
+            : Number(trackedSecondsByDateKey[currentDateKey] || 0);
 
         const hours = seconds / 3600;
         const rowData: (string | number)[] = [
@@ -67,8 +76,8 @@ export async function syncWeeklyReport(userId: string, dateStr: string) {
         rows.push(rowData);
     }
 
-    const totalHoursVal = Math.floor(totalSeconds / 3600);
-    const totalMinutesVal = Math.floor((totalSeconds % 3600) / 60);
+    const totalHoursVal = Math.floor(trackingStats.weekSeconds / 3600);
+    const totalMinutesVal = Math.floor((trackingStats.weekSeconds % 3600) / 60);
     const totalsRow: (string | number)[] = [
         "Weekly Totals",
         "",
@@ -76,7 +85,7 @@ export async function syncWeeklyReport(userId: string, dateStr: string) {
     ];
 
     if (userId === "sourabh") {
-        totalsRow.push(`$${((totalSeconds / 3600) * 5).toFixed(2)}`);
+        totalsRow.push(`$${((trackingStats.weekSeconds / 3600) * 5).toFixed(2)}`);
     }
 
     rows.push(totalsRow);
