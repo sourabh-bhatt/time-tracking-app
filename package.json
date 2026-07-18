@@ -59,6 +59,7 @@
     "directories": {
       "output": "dist"
     },
+    "icon": "public/time-tracker-linux.png",
     "win": {
       "target": "nsis"
     },
@@ -66,6 +67,7 @@
       "target": "zip"
     },
     "linux": {
+      "icon": "public/time-tracker-linux.png",
       "target": [
         "AppImage",
         "deb"

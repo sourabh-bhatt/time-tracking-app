@@ -5,7 +5,7 @@ APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 APPLICATIONS_DIR="${HOME}/.local/share/applications"
 APPLICATIONS_FILE="${APPLICATIONS_DIR}/employee-tracker-prayash.desktop"
 DESKTOP_SHORTCUT="${HOME}/Desktop/employee-tracker-prayash.desktop"
-ICON_PATH="${APP_DIR}/public/time-tracker-linux.svg"
+ICON_PATH="${APP_DIR}/public/time-tracker-linux.png"
 LAUNCH_SCRIPT="${APP_DIR}/start-prayash-linux.sh"
 APP_NAME="Employee Tracker"
 LEGACY_APPLICATIONS_FILE="${APPLICATIONS_DIR}/time-tracker-prayash.desktop"
@@ -60,3 +60,4 @@ if [ -f "${DESKTOP_SHORTCUT}" ]; then
 fi
 echo
 echo "You can now search for '${APP_NAME}' in the app menu or click the desktop icon."
+

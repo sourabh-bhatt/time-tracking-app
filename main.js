@@ -349,6 +349,7 @@ function createWindow() {
         },
         autoHideMenuBar: true,
         backgroundColor: '#121212',
+        icon: path.join(__dirname, 'public', 'time-tracker-linux.png'),
         show: true,
     });
 

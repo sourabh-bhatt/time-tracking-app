@@ -1,13 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Time Tracker">
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="16" y="16" width="480" height="480" rx="120" fill="url(#bg)"/>
+  <path d="M180 256C180 196 219 158 256 158C293 158 332 196 332 256C332 328 291 390 256 390C221 390 180 328 180 256Z" fill="#EF4444"/>
+  <path d="M145 257C145 210 176 174 217 174C241 174 260 188 271 214C253 221 226 242 226 278C226 319 250 345 266 357C252 381 236 394 217 394C177 394 145 326 145 257Z" fill="#F87171"/>
+  <path d="M291 174C329 174 367 213 367 264C367 330 322 394 281 394C262 394 246 381 232 357C247 346 281 318 281 268C281 227 254 198 239 188C252 179 270 174 291 174Z" fill="#DC2626"/>
+  <ellipse cx="300" cy="108" rx="42" ry="22" transform="rotate(18 300 108)" fill="#22C55E"/>
+  <rect x="243" y="110" width="16" height="46" rx="8" fill="#FACC15"/>
+  <circle cx="360" cy="248" r="18" fill="#2563EB"/>
+  <path d="M205 135C214 114 232 102 252 102C243 116 231 130 205 135Z" fill="#2563EB"/>
+  <ellipse cx="205" cy="222" rx="26" ry="58" fill="white" fill-opacity="0.22"/>
   <defs>
-    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#0f172a"/>
-      <stop offset="100%" stop-color="#111827"/>
+    <linearGradient id="bg" x1="56" y1="36" x2="456" y2="476" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F172A"/>
+      <stop offset="1" stop-color="#2563EB"/>
     </linearGradient>
   </defs>
-  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
-  <circle cx="64" cy="64" r="34" fill="none" stroke="#14a800" stroke-width="10"/>
-  <circle cx="64" cy="64" r="4" fill="#14a800"/>
-  <path d="M64 64V42" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
-  <path d="M64 64L82 76" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
 </svg>
