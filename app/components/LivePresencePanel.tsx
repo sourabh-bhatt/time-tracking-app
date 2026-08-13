@@ -5,14 +5,19 @@ import { getCompactTimeZoneDisplay, getEasternTime, getTimeZoneAbbreviation } fr
 
 type PresenceSummary = {
     userId: string;
-    status: "offline" | "tracking-off" | "idle" | "active" | "on-call";
+    status: "offline" | "tracking-off" | "manual-active" | "manual-on-call" | "idle" | "active" | "on-call";
     statusLabel: string;
     isOnline: boolean;
     isTracking: boolean;
+    isManualPresence: boolean;
+    isManualOnCall: boolean;
     isIdle: boolean;
     onCall: boolean;
     platform: string | null;
     trackingStartedAt: string | null;
+    manualPresenceSince: string | null;
+    manualPresenceDurationSeconds: number | null;
+    manualOnCallSince: string | null;
     activeSince: string | null;
     idleSince: string | null;
     lastHeartbeatAt: string | null;
@@ -58,8 +63,10 @@ function formatTime(iso: string | null, _timeZone: string) {
 function getCardClasses(status: PresenceSummary["status"]) {
     switch (status) {
         case "active":
+        case "manual-active":
             return "border-[#14a800] bg-[#132312]";
         case "on-call":
+        case "manual-on-call":
             return "border-[#a855f7] bg-[#241338]";
         case "idle":
             return "border-[#d4a72c] bg-[#29210d]";
@@ -73,8 +80,10 @@ function getCardClasses(status: PresenceSummary["status"]) {
 function getDotClasses(status: PresenceSummary["status"]) {
     switch (status) {
         case "active":
+        case "manual-active":
             return "bg-[#14a800] shadow-[0_0_12px_rgba(20,168,0,0.7)]";
         case "on-call":
+        case "manual-on-call":
             return "bg-[#a855f7] shadow-[0_0_12px_rgba(168,85,247,0.65)]";
         case "idle":
             return "bg-[#d4a72c] shadow-[0_0_12px_rgba(212,167,44,0.6)]";
@@ -147,23 +156,29 @@ export default function LivePresencePanel({
     return (
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             {sortedPresence.map((entry) => {
-                const primaryDetail = entry.status === "on-call"
+                const primaryDetail = entry.status === "on-call" || entry.status === "manual-on-call"
                     ? "Call mode is active. Idle is suppressed while the call toggle stays on."
-                    : entry.status === "active"
-                    ? `Active for ${formatElapsed(entry.activeDurationSeconds)}`
-                    : entry.status === "idle"
-                        ? `Idle for ${formatElapsed(entry.idleDurationSeconds)}`
-                        : entry.status === "tracking-off"
-                            ? "Desktop is online, tracker is off"
-                            : entry.heartbeatAgeSeconds === null
-                                ? "No live tracker heartbeat yet"
-                                : `Last seen ${formatElapsed(entry.heartbeatAgeSeconds)} ago`;
+                    : entry.status === "manual-active"
+                        ? `Working for ${formatElapsed(entry.manualPresenceDurationSeconds)}`
+                        : entry.status === "active"
+                            ? `Active for ${formatElapsed(entry.activeDurationSeconds)}`
+                            : entry.status === "idle"
+                                ? `Idle for ${formatElapsed(entry.idleDurationSeconds)}`
+                                : entry.status === "tracking-off"
+                                    ? "Desktop is online, tracker is off"
+                                    : entry.heartbeatAgeSeconds === null
+                                        ? "No live tracker heartbeat yet"
+                                        : `Last seen ${formatElapsed(entry.heartbeatAgeSeconds)} ago`;
 
-                const secondaryDetail = entry.isTracking && entry.trackingStartedAt
-                    ? `Tracking since ${formatTime(entry.trackingStartedAt, entry.timeZone)} ${getTimeZoneAbbreviation(new Date(entry.trackingStartedAt), entry.timeZone)}`
-                    : entry.lastHeartbeatAt
-                        ? `Heartbeat ${formatTime(entry.lastHeartbeatAt, entry.timeZone)} ${getTimeZoneAbbreviation(new Date(entry.lastHeartbeatAt), entry.timeZone)}`
-                        : "Waiting for desktop app login heartbeat";
+                const secondaryDetail = entry.status === "manual-on-call"
+                    ? `On call since ${formatTime(entry.manualOnCallSince, entry.timeZone)} ${entry.manualOnCallSince ? getTimeZoneAbbreviation(new Date(entry.manualOnCallSince), entry.timeZone) : ""}.`
+                    : entry.status === "manual-active"
+                    ? `Working since ${formatTime(entry.manualPresenceSince, entry.timeZone)} ${entry.manualPresenceSince ? getTimeZoneAbbreviation(new Date(entry.manualPresenceSince), entry.timeZone) : ""}.`
+                    : entry.isTracking && entry.trackingStartedAt
+                        ? `Tracking since ${formatTime(entry.trackingStartedAt, entry.timeZone)} ${getTimeZoneAbbreviation(new Date(entry.trackingStartedAt), entry.timeZone)}`
+                        : entry.lastHeartbeatAt
+                            ? `Heartbeat ${formatTime(entry.lastHeartbeatAt, entry.timeZone)} ${getTimeZoneAbbreviation(new Date(entry.lastHeartbeatAt), entry.timeZone)}`
+                            : "Waiting for desktop app login heartbeat";
                 const timeZoneDisplay = getCompactTimeZoneDisplay(new Date(), entry.timeZone);
 
                 return (
@@ -183,7 +198,7 @@ export default function LivePresencePanel({
                             </div>
                             <div className="text-right text-xs text-gray-400">
                                 <div>{timeZoneDisplay}</div>
-                                {entry.platform ? <div>{entry.platform}</div> : null}
+                                {entry.status === "manual-active" || entry.status === "manual-on-call" ? <div></div> : entry.platform ? <div>{entry.platform}</div> : null}
                             </div>
                         </div>
 

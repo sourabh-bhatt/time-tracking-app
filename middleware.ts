@@ -7,7 +7,7 @@ export function middleware(request: NextRequest) {
     const userParam = url.searchParams.get('user');
 
     // Define public paths that don't need authentication
-    const isPublicPath = path === '/login' || path.startsWith('/api/');
+    const isPublicPath = path === '/login' || path === '/testing-in-out' || path.startsWith('/api/');
 
     const adminToken = request.cookies.get('admin_session')?.value;
     const prayashToken = request.cookies.get('prayash_session')?.value;

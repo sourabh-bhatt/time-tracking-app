@@ -38,19 +38,28 @@ export interface UserState {
     lastHeartbeatAt: string | null;
     lastActivityAt: string | null;
     platform: string | null;
+    mobilePresenceEnabled: boolean;
+    mobilePresenceUpdatedAt: string | null;
+    mobileOnCall: boolean;
+    mobileOnCallUpdatedAt: string | null;
     lastUpdated: string | null;
 }
 
 export interface PresenceSummary {
     userId: string;
-    status: "offline" | "tracking-off" | "idle" | "active" | "on-call";
+    status: "offline" | "tracking-off" | "manual-active" | "manual-on-call" | "idle" | "active" | "on-call";
     statusLabel: string;
     isOnline: boolean;
     isTracking: boolean;
+    isManualPresence: boolean;
+    isManualOnCall: boolean;
     isIdle: boolean;
     onCall: boolean;
     platform: string | null;
     trackingStartedAt: string | null;
+    manualPresenceSince: string | null;
+    manualPresenceDurationSeconds: number | null;
+    manualOnCallSince: string | null;
     activeSince: string | null;
     idleSince: string | null;
     lastHeartbeatAt: string | null;
