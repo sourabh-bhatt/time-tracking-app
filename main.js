@@ -10,6 +10,7 @@ const {
     IDLE_THRESHOLD_SECONDS,
     TRACKING_TIME_LABEL,
     TRACKING_TIMEZONE,
+    createFlag,
     deleteLogById,
     getTrackingStats,
     listFlagsForUser,
@@ -18,6 +19,9 @@ const {
     saveLogEntry,
     saveUserState,
 } = require('./lib/s3-storage');
+
+const ON_CALL_CHECKIN_INTERVAL_MS = (process.env.ON_CALL_CHECKIN_MINUTES ? Number(process.env.ON_CALL_CHECKIN_MINUTES) : 30) * 60 * 1000;
+const ON_CALL_GRACE_PERIOD_MS = (process.env.ON_CALL_GRACE_MINUTES ? Number(process.env.ON_CALL_GRACE_MINUTES) : 5) * 60 * 1000;
 
 let mainWindow;
 let intervalId;
@@ -34,6 +38,12 @@ let trackingStartedAt = null;
 let activeSince = null;
 let idleSince = null;
 let onCall = false;
+let onCallCheckinTimerId = null;
+let onCallGraceCheckIntervalId = null;
+let onCallCheckinActive = false;
+let onCallCheckinStartTime = null;
+let onCallCheckinDeadline = null;
+let onCallWarningSent = { 5: false, 3: false, 1: false };
 let lastInputAt = null;
 let inputMonitoringReady = false;
 let exitPresenceSaved = false;
@@ -314,12 +324,187 @@ function syncSystemActivity(now = Date.now()) {
     }
 }
 
+function clearOnCallCheckin(options = {}) {
+    if (onCallCheckinTimerId) {
+        clearTimeout(onCallCheckinTimerId);
+        onCallCheckinTimerId = null;
+    }
+    if (onCallGraceCheckIntervalId) {
+        clearInterval(onCallGraceCheckIntervalId);
+        onCallGraceCheckIntervalId = null;
+    }
+    onCallCheckinActive = false;
+    onCallCheckinStartTime = null;
+    onCallCheckinDeadline = null;
+    onCallWarningSent = { 5: false, 3: false, 1: false };
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        try {
+            mainWindow.setAlwaysOnTop(false);
+            mainWindow.flashFrame(false);
+            if (options.notifyRenderer) {
+                mainWindow.webContents.send('on-call-checkin-cancel');
+            }
+        } catch {
+            // ignore window destroyed race condition
+        }
+    }
+}
+
+function startOnCallCheckinCycle() {
+    clearOnCallCheckin({ notifyRenderer: true });
+    logToFile(`Starting on-call check-in timer for ${ON_CALL_CHECKIN_INTERVAL_MS / 60000} mins.`);
+    onCallCheckinTimerId = setTimeout(() => {
+        triggerOnCallCheckin();
+    }, ON_CALL_CHECKIN_INTERVAL_MS);
+}
+
+async function triggerOnCallCheckin() {
+    if (!isTracking || !onCall) {
+        clearOnCallCheckin();
+        return;
+    }
+
+    onCallCheckinActive = true;
+    onCallCheckinStartTime = Date.now();
+    onCallCheckinDeadline = onCallCheckinStartTime + ON_CALL_GRACE_PERIOD_MS;
+    onCallWarningSent = { 5: true, 3: false, 1: false };
+
+    logToFile('On-call 30-min check-in triggered. Starting 5-minute countdown grace period.');
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.setAlwaysOnTop(true, 'screen-saver');
+        mainWindow.flashFrame(true);
+
+        mainWindow.webContents.send('on-call-checkin-start', {
+            durationSeconds: Math.floor(ON_CALL_GRACE_PERIOD_MS / 1000),
+            deadline: onCallCheckinDeadline,
+        });
+
+        if (process.platform !== 'linux') {
+            mainWindow.webContents.send('play-sound');
+        }
+        mainWindow.webContents.send('show-notification', {
+            title: '📞 On-Call Check-In (5 mins remaining)',
+            body: 'Are you still on call? Please confirm within 5 minutes to keep time tracking active.',
+            silent: false,
+        });
+    }
+
+    onCallGraceCheckIntervalId = setInterval(async () => {
+        if (!onCallCheckinActive || !isTracking || !onCall) {
+            clearOnCallCheckin({ notifyRenderer: true });
+            return;
+        }
+
+        const msRemaining = onCallCheckinDeadline - Date.now();
+        const secondsRemaining = Math.max(0, Math.ceil(msRemaining / 1000));
+
+        // Stage 2 (3 mins remaining <= 180s)
+        if (secondsRemaining <= 180 && secondsRemaining > 60 && !onCallWarningSent[3]) {
+            onCallWarningSent[3] = true;
+            logToFile('On-call check-in: 3 minutes remaining warning sent.');
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.flashFrame(true);
+                if (process.platform !== 'linux') {
+                    mainWindow.webContents.send('play-sound');
+                }
+                mainWindow.webContents.send('show-notification', {
+                    title: '⚠️ On-Call Alert (3 mins remaining)',
+                    body: 'Please confirm you are still on call. Tracking will stop in 3 minutes.',
+                    silent: false,
+                });
+            }
+        }
+
+        // Stage 3 (1 min remaining <= 60s)
+        if (secondsRemaining <= 60 && secondsRemaining > 0 && !onCallWarningSent[1]) {
+            onCallWarningSent[1] = true;
+            logToFile('On-call check-in: 1 minute remaining urgent warning sent.');
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.flashFrame(true);
+                if (process.platform !== 'linux') {
+                    mainWindow.webContents.send('play-sound');
+                }
+                mainWindow.webContents.send('show-notification', {
+                    title: '🚨 URGENT: On-Call Expiring (1 min remaining)',
+                    body: 'Tracker will stop and session will be flagged as discontinued in 1 minute.',
+                    silent: false,
+                });
+            }
+        }
+
+        if (msRemaining <= 0) {
+            if (onCallGraceCheckIntervalId) {
+                clearInterval(onCallGraceCheckIntervalId);
+                onCallGraceCheckIntervalId = null;
+            }
+            await handleOnCallDiscontinued();
+        }
+    }, 1000);
+}
+
+async function handleOnCallDiscontinued() {
+    logToFile('On-call check-in expired with no response. Auto-stopping tracking and creating flag.');
+    const checkinStartIso = new Date(onCallCheckinStartTime || (Date.now() - ON_CALL_GRACE_PERIOD_MS)).toISOString();
+    const nowIso = new Date().toISOString();
+    const flaggedUserId = currentUserId;
+
+    clearOnCallCheckin();
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('on-call-checkin-expired');
+        if (process.platform !== 'linux') {
+            mainWindow.webContents.send('play-sound');
+        }
+        mainWindow.webContents.send('show-notification', {
+            title: '🛑 Tracker Stopped',
+            body: 'On-call session discontinued due to no response and flagged for review.',
+            silent: false,
+        });
+    }
+
+    isTracking = false;
+    trackingStartedAt = null;
+    activeSince = null;
+    idleSince = null;
+    onCall = false;
+    clearTrackingSchedule();
+
+    sendPresenceUpdate();
+    queuePresenceSync('tracking-stopped');
+    resetActivityCounters();
+
+    try {
+        if (flaggedUserId) {
+            await createFlag({
+                userId: flaggedUserId,
+                targetType: 'time-block',
+                reason: 'Flagged due to discontinued',
+                memo: 'Teammate did not respond to on-call check-in after 30 minutes + 5 min grace period.',
+                startTimestamp: checkinStartIso,
+                endTimestamp: nowIso,
+            });
+            logToFile(`Auto-flag created for ${flaggedUserId}: Flagged due to discontinued`);
+            await fetchFlags(flaggedUserId);
+        }
+    } catch (flagErr) {
+        console.error('Failed to create auto-flag:', flagErr);
+        logToFile(`Failed to create auto-flag: ${flagErr.message}`);
+    }
+}
+
 async function setOnCallMode(nextOnCall) {
     onCall = Boolean(nextOnCall && isTracking);
 
     if (onCall) {
         activeSince = activeSince || toIso(lastInputAt || Date.now());
         idleSince = null;
+        startOnCallCheckinCycle();
+    } else {
+        clearOnCallCheckin({ notifyRenderer: true });
     }
 
     sendTrackingConfig();
@@ -814,6 +999,9 @@ ipcMain.on('start-tracking', async () => {
 
     sendPresenceUpdate();
     queuePresenceSync('tracking-started');
+    if (onCall) {
+        startOnCallCheckinCycle();
+    }
     startRandomCycle();
 });
 
@@ -824,6 +1012,7 @@ ipcMain.on('stop-tracking', async () => {
     idleSince = null;
     onCall = false;
     clearTrackingSchedule();
+    clearOnCallCheckin({ notifyRenderer: true });
 
     console.log('Tracking stopped');
     logToFile('Tracking stopped.');
@@ -831,6 +1020,16 @@ ipcMain.on('stop-tracking', async () => {
     sendPresenceUpdate();
     queuePresenceSync('tracking-stopped');
     resetActivityCounters();
+});
+
+ipcMain.on('confirm-on-call-checkin', () => {
+    if (!onCallCheckinActive) return;
+    logToFile('Teammate confirmed on-call check-in. Resuming on-call cycle.');
+    clearOnCallCheckin();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('on-call-checkin-dismissed');
+    }
+    startOnCallCheckinCycle();
 });
 
 ipcMain.on('delete-screenshot', async (_event, id) => {

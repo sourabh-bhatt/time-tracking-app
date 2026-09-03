@@ -31,6 +31,11 @@ const totalPendingInput = document.getElementById('totalPendingInput');
 const saveEarningsBtn = document.getElementById('saveEarningsBtn');
 const usersSettingsIcon = document.querySelector('.settings-icon');
 
+const onCallModal = document.getElementById('on-call-modal');
+const onCallCountdownTimer = document.getElementById('onCallCountdownTimer');
+const confirmOnCallBtn = document.getElementById('confirmOnCallBtn');
+let onCallTimerInterval = null;
+
 let currentUser = '';
 let envUser = '';
 let isTracking = false;
@@ -401,6 +406,74 @@ function formatWeekHours(totalSeconds) {
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     return `${hours}:${pad(minutes)}`;
+}
+
+function hideOnCallModal() {
+    if (onCallTimerInterval) {
+        clearInterval(onCallTimerInterval);
+        onCallTimerInterval = null;
+    }
+    if (onCallModal) {
+        onCallModal.style.display = 'none';
+    }
+    if (onCallCountdownTimer) {
+        onCallCountdownTimer.classList.remove('urgent');
+    }
+}
+
+function updateCountdownDisplay(msRemaining) {
+    const totalSeconds = Math.max(0, Math.ceil(msRemaining / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (onCallCountdownTimer) {
+        onCallCountdownTimer.textContent = `${pad(minutes)}:${pad(seconds)}`;
+        if (totalSeconds <= 60) {
+            onCallCountdownTimer.classList.add('urgent');
+        } else {
+            onCallCountdownTimer.classList.remove('urgent');
+        }
+    }
+}
+
+ipcRenderer.on('on-call-checkin-start', (_event, data) => {
+    hideOnCallModal();
+    const deadline = data.deadline || (Date.now() + (data.durationSeconds || 300) * 1000);
+
+    if (onCallModal) {
+        onCallModal.style.display = 'flex';
+    }
+
+    updateCountdownDisplay(deadline - Date.now());
+
+    onCallTimerInterval = setInterval(() => {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) {
+            updateCountdownDisplay(0);
+            clearInterval(onCallTimerInterval);
+            onCallTimerInterval = null;
+        } else {
+            updateCountdownDisplay(remaining);
+        }
+    }, 500);
+});
+
+ipcRenderer.on('on-call-checkin-dismissed', () => {
+    hideOnCallModal();
+});
+
+ipcRenderer.on('on-call-checkin-cancel', () => {
+    hideOnCallModal();
+});
+
+ipcRenderer.on('on-call-checkin-expired', () => {
+    hideOnCallModal();
+});
+
+if (confirmOnCallBtn) {
+    confirmOnCallBtn.addEventListener('click', () => {
+        ipcRenderer.send('confirm-on-call-checkin');
+        hideOnCallModal();
+    });
 }
 
 updateTodayLabel();

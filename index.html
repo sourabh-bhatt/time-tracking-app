@@ -147,6 +147,30 @@
             <button id="saveEarningsBtn" class="btn" style="width: 100%; margin-top: 20px;">Save Earnings</button>
         </div>
     </div>
+    <!-- On-Call Confirmation Modal -->
+    <div id="on-call-modal" class="modal on-call-modal" style="display: none;">
+        <div class="modal-content on-call-modal-content">
+            <div class="on-call-modal-badge">
+                <i class="fas fa-phone-volume on-call-pulse-icon"></i>
+            </div>
+            <h3 class="on-call-title">On-Call Check-In</h3>
+            <p class="on-call-subtitle">You have been marked <strong>On Call</strong> for 30 minutes. Please confirm you are still active on this call.</p>
+            
+            <div class="on-call-timer-card">
+                <div class="on-call-timer-label">TIME REMAINING TO CONFIRM</div>
+                <div id="onCallCountdownTimer" class="on-call-timer-digits">05:00</div>
+            </div>
+
+            <div class="on-call-warning-box">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>If unconfirmed, time tracking will auto-stop and this window will be <strong>Flagged due to discontinued</strong>.</span>
+            </div>
+
+            <button id="confirmOnCallBtn" class="btn confirm-on-call-btn">
+                <i class="fas fa-check-circle"></i> Yes, I'm Still On Call
+            </button>
+        </div>
+    </div>
 
     <script src="renderer.js"></script>
 </body>
