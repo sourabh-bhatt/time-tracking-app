@@ -85,11 +85,28 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
         <div className="min-h-screen bg-[#121212] text-gray-300 font-sans">
             <header className="bg-[#1e1e1e] border-b border-[#333] px-4 md:px-6 py-4 sticky top-0 z-20">
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 md:gap-0">
-                    <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-start">
-                        <Link href="/" className="flex items-center gap-2 group">
+                    <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6 w-full md:w-auto justify-between md:justify-start">
+                        <Link href={`/?user=${selectedUser}&date=${dateParam}`} className="flex items-center gap-2 group">
                             <span className="text-gray-400 group-hover:text-white">←</span>
                             <h1 className="text-2xl font-bold text-white">Back to Work Diary</h1>
                         </Link>
+
+                        {isAdmin && (
+                            <div className="flex bg-[#2a2a2a] rounded-lg p-1 w-full md:w-auto justify-center">
+                                {["sourabh", "prayash"].map((user) => (
+                                    <Link
+                                        key={user}
+                                        href={`/report?user=${user}&date=${startOfWeekKey}`}
+                                        className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors flex-1 md:flex-initial text-center ${selectedUser === user
+                                            ? "bg-[#333] text-white shadow-sm font-semibold"
+                                            : "text-gray-400 hover:text-white"
+                                            }`}
+                                    >
+                                        {user}
+                                    </Link>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-4 w-full md:w-auto justify-end">
@@ -104,7 +121,26 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
             <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
                 <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 md:gap-0">
                     <div className="text-center md:text-left">
-                        <h2 className="text-3xl font-bold text-white mb-2">Weekly Report</h2>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-2">
+                            <h2 className="text-3xl font-bold text-white">Weekly Report</h2>
+                            {isAdmin && (
+                                <div className="inline-flex bg-[#2a2a2a] border border-[#3a3a3a] rounded-lg p-1 self-center sm:self-auto">
+                                    {["sourabh", "prayash"].map((user) => (
+                                        <Link
+                                            key={user}
+                                            href={`/report?user=${user}&date=${startOfWeekKey}`}
+                                            className={`px-3 py-1 rounded-md text-xs font-semibold capitalize transition-all ${
+                                                selectedUser === user
+                                                    ? "bg-[#14a800] text-white shadow"
+                                                    : "text-gray-400 hover:text-white"
+                                            }`}
+                                        >
+                                            {user}
+                                        </Link>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                         <p className="text-gray-400">
                             {getEasternDateShort(startOfWeek)}
                             {" - "}
@@ -143,7 +179,14 @@ export default async function ReportPage(props: { searchParams: Promise<{ date?:
                                 return (
                                     <tr key={day.date} className="hover:bg-[#252525] transition-colors">
                                         <td className="px-6 py-4 text-white font-medium whitespace-nowrap">
-                                            {getEasternDateShort(parseDateKey(day.date))}
+                                            <Link
+                                                href={`/?user=${selectedUser}&date=${day.date}`}
+                                                className="hover:text-[#14a800] hover:underline transition-colors inline-flex items-center gap-1.5"
+                                                title={`View ${selectedUser}'s work diary for ${day.date}`}
+                                            >
+                                                <span>{getEasternDateShort(parseDateKey(day.date))}</span>
+                                                <span className="text-[10px] text-gray-500 hover:text-white">↗</span>
+                                            </Link>
                                         </td>
                                         <td className="px-6 py-4 text-gray-400 whitespace-nowrap">{day.dayName}</td>
                                         <td className="px-6 py-4 font-mono text-lg text-white whitespace-nowrap">
