@@ -32,6 +32,9 @@ export interface UserState {
     isTracking: boolean;
     isIdle: boolean;
     onCall: boolean;
+    onCallCheckinDueAt?: string | null;
+    onCallCheckinActive?: boolean;
+    onCallCheckinDeadline?: string | null;
     trackingStartedAt: string | null;
     activeSince: string | null;
     idleSince: string | null;
@@ -55,6 +58,10 @@ export interface PresenceSummary {
     isManualOnCall: boolean;
     isIdle: boolean;
     onCall: boolean;
+    onCallCheckinDueAt?: string | null;
+    onCallCheckinActive?: boolean;
+    onCallCheckinDeadline?: string | null;
+    onCallCheckinSecondsRemaining?: number | null;
     platform: string | null;
     trackingStartedAt: string | null;
     manualPresenceSince: string | null;

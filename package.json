@@ -45,6 +45,7 @@
     "@types/react-dom": "^19",
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
+    "electron-packager": "^17.1.2",
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
     "tailwindcss": "^4",

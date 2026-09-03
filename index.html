@@ -95,6 +95,24 @@
                     <span>On Call</span>
                 </label>
                 <div id="callModeMeta" class="call-mode-meta">Prevents idle while you are on a call.</div>
+
+                <!-- Live On-Call 30-Min Countdown & Policy Card -->
+                <div id="onCallCountdownCard" class="on-call-countdown-card" style="display: none;">
+                    <div class="on-call-card-header">
+                        <div class="on-call-card-title">
+                            <i class="fas fa-stopwatch on-call-icon-spin"></i>
+                            <span>Check-In Timer</span>
+                        </div>
+                        <div id="onCallCycleTimer" class="on-call-cycle-digits">30:00</div>
+                    </div>
+                    <div class="on-call-cycle-progress-bg">
+                        <div id="onCallCycleProgressBar" class="on-call-cycle-progress-fill" style="width: 100%;"></div>
+                    </div>
+                    <div id="onCallCycleStatusText" class="on-call-cycle-status">Next check-in required in 30m 00s</div>
+                    <div class="on-call-policy-note">
+                        <strong>📌 Policy Note:</strong> Every 30 minutes on call, a 5-minute confirmation prompt will appear on your screen with audio alerts. If not confirmed, tracking automatically stops and the session is flagged as discontinued.
+                    </div>
+                </div>
             </div>
 
             <!-- Screenshot Preview -->

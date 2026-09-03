@@ -43,6 +43,7 @@ let onCallGraceCheckIntervalId = null;
 let onCallCheckinActive = false;
 let onCallCheckinStartTime = null;
 let onCallCheckinDeadline = null;
+let onCallCheckinDueAt = null;
 let onCallWarningSent = { 5: false, 3: false, 1: false };
 let lastInputAt = null;
 let inputMonitoringReady = false;
@@ -160,6 +161,9 @@ function buildPresenceState(now = Date.now()) {
         isTracking,
         isIdle: idle,
         onCall: Boolean(isTracking && onCall),
+        onCallCheckinDueAt: onCall && onCallCheckinDueAt ? toIso(onCallCheckinDueAt) : null,
+        onCallCheckinActive: Boolean(onCall && onCallCheckinActive),
+        onCallCheckinDeadline: onCall && onCallCheckinActive && onCallCheckinDeadline ? toIso(onCallCheckinDeadline) : null,
         trackingStartedAt: isTracking ? trackingStartedAt : null,
         activeSince: nextActiveSince,
         idleSince: nextIdleSince,
@@ -177,6 +181,14 @@ function buildRendererPresence(now = Date.now()) {
         sessionWorkedSeconds,
         idleThresholdSeconds: IDLE_THRESHOLD_SECONDS,
         onCall: Boolean(isTracking && onCall),
+        onCallCheckinDueAt: onCall ? onCallCheckinDueAt : null,
+        onCallCheckinActive: Boolean(onCall && onCallCheckinActive),
+        onCallCheckinDeadline: onCall ? onCallCheckinDeadline : null,
+        onCallCheckinSecondsRemaining: onCall
+            ? (onCallCheckinActive && onCallCheckinDeadline
+                ? Math.max(0, Math.ceil((onCallCheckinDeadline - now) / 1000))
+                : (onCallCheckinDueAt ? Math.max(0, Math.ceil((onCallCheckinDueAt - now) / 1000)) : null))
+            : null,
         trackingTimeZone: TRACKING_TIMEZONE,
         trackingTimeLabel: TRACKING_TIME_LABEL,
     };
@@ -336,6 +348,7 @@ function clearOnCallCheckin(options = {}) {
     onCallCheckinActive = false;
     onCallCheckinStartTime = null;
     onCallCheckinDeadline = null;
+    onCallCheckinDueAt = null;
     onCallWarningSent = { 5: false, 3: false, 1: false };
 
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -353,7 +366,10 @@ function clearOnCallCheckin(options = {}) {
 
 function startOnCallCheckinCycle() {
     clearOnCallCheckin({ notifyRenderer: true });
+    onCallCheckinDueAt = Date.now() + ON_CALL_CHECKIN_INTERVAL_MS;
     logToFile(`Starting on-call check-in timer for ${ON_CALL_CHECKIN_INTERVAL_MS / 60000} mins.`);
+    sendPresenceUpdate();
+    queuePresenceSync('on-call-cycle-started');
     onCallCheckinTimerId = setTimeout(() => {
         triggerOnCallCheckin();
     }, ON_CALL_CHECKIN_INTERVAL_MS);

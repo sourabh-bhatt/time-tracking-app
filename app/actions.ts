@@ -47,7 +47,7 @@ export async function syncWeeklyReport(userId: string, dateStr: string) {
     if (userId === "sourabh") headers.push(`${userCap} Earnings ($)`);
 
     const rows: (string | number)[][] = [headers];
-    const trackedSecondsByDateKey = logs.reduce((acc, log) => {
+    const trackedSecondsByDateKey = logs.reduce((acc: Record<string, number>, log: { dateKey: string; countsTowardTime?: boolean }) => {
         if (log.countsTowardTime) {
             acc[log.dateKey] = (acc[log.dateKey] || 0) + TRACKING_INTERVAL_SECONDS;
         }

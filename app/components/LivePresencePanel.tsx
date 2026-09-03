@@ -13,6 +13,10 @@ type PresenceSummary = {
     isManualOnCall: boolean;
     isIdle: boolean;
     onCall: boolean;
+    onCallCheckinDueAt?: string | null;
+    onCallCheckinActive?: boolean;
+    onCallCheckinDeadline?: string | null;
+    onCallCheckinSecondsRemaining?: number | null;
     platform: string | null;
     trackingStartedAt: string | null;
     manualPresenceSince: string | null;
@@ -181,6 +185,28 @@ export default function LivePresencePanel({
                             : "Waiting for desktop app login heartbeat";
                 const timeZoneDisplay = getCompactTimeZoneDisplay(new Date(), entry.timeZone);
 
+                const nowMs = Date.now();
+                let onCallCountdownDisplay: string | null = null;
+                let onCallIsUrgent = false;
+
+                if ((entry.status === "on-call" || entry.status === "manual-on-call") && entry.onCall) {
+                    if (entry.onCallCheckinActive && entry.onCallCheckinDeadline) {
+                        const deadlineMs = new Date(entry.onCallCheckinDeadline).getTime();
+                        const secondsLeft = Math.max(0, Math.ceil((deadlineMs - nowMs) / 1000));
+                        const m = Math.floor(secondsLeft / 60);
+                        const s = secondsLeft % 60;
+                        onCallCountdownDisplay = `${m}:${s < 10 ? "0" : ""}${s}`;
+                        onCallIsUrgent = true;
+                    } else if (entry.onCallCheckinDueAt) {
+                        const dueMs = new Date(entry.onCallCheckinDueAt).getTime();
+                        const secondsLeft = Math.max(0, Math.ceil((dueMs - nowMs) / 1000));
+                        const m = Math.floor(secondsLeft / 60);
+                        const s = secondsLeft % 60;
+                        onCallCountdownDisplay = `${m}:${s < 10 ? "0" : ""}${s}`;
+                        onCallIsUrgent = secondsLeft <= 60;
+                    }
+                }
+
                 return (
                     <div
                         key={entry.userId}
@@ -204,6 +230,31 @@ export default function LivePresencePanel({
 
                         <div className="mt-4 text-sm text-gray-200">{primaryDetail}</div>
                         <div className="mt-1 text-xs text-gray-400">{secondaryDetail}</div>
+
+                        {(entry.status === "on-call" || entry.status === "manual-on-call") && (
+                            <div className="mt-4 bg-[#141414]/90 border border-amber-500/40 rounded-lg p-3.5 shadow-inner">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className={`h-2.5 w-2.5 rounded-full ${onCallIsUrgent ? "bg-red-500 animate-ping" : "bg-amber-400"}`}></span>
+                                        <span className={`text-xs font-semibold uppercase tracking-wider ${onCallIsUrgent ? "text-red-400" : "text-amber-300"}`}>
+                                            {entry.onCallCheckinActive ? "Confirmation In Progress" : "Next Check-In Due"}
+                                        </span>
+                                    </div>
+                                    {onCallCountdownDisplay && (
+                                        <span className={`font-mono font-bold text-sm px-2.5 py-0.5 rounded bg-black/70 border ${
+                                            onCallIsUrgent 
+                                                ? "text-red-400 border-red-500/50 animate-pulse" 
+                                                : "text-amber-400 border-amber-500/40"
+                                        }`}>
+                                            {onCallCountdownDisplay}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="mt-2.5 text-[11px] text-gray-400 leading-relaxed border-t border-white/10 pt-2">
+                                    <span className="font-semibold text-gray-300">📌 On-Call Check-in Policy:</span> Teammate must confirm active status every 30 mins. A 5-minute confirmation prompt will appear on their desktop. If unconfirmed, tracking auto-stops and the session is flagged as discontinued.
+                                </div>
+                            </div>
+                        )}
                     </div>
                 );
             })}

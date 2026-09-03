@@ -34,7 +34,12 @@ const usersSettingsIcon = document.querySelector('.settings-icon');
 const onCallModal = document.getElementById('on-call-modal');
 const onCallCountdownTimer = document.getElementById('onCallCountdownTimer');
 const confirmOnCallBtn = document.getElementById('confirmOnCallBtn');
+const onCallCountdownCard = document.getElementById('onCallCountdownCard');
+const onCallCycleTimer = document.getElementById('onCallCycleTimer');
+const onCallCycleProgressBar = document.getElementById('onCallCycleProgressBar');
+const onCallCycleStatusText = document.getElementById('onCallCycleStatusText');
 let onCallTimerInterval = null;
+let onCallCycleInterval = null;
 
 let currentUser = '';
 let envUser = '';
@@ -217,6 +222,70 @@ function renderPresence(presence) {
             : 'Start tracking first, then enable On Call if you are in a meeting or phone call.';
     }
     updateTimeZoneHint();
+    updateOnCallCycleUI(presence);
+}
+
+function updateOnCallCycleUI(presence) {
+    if (!presence || !presence.isTracking || !presence.onCall) {
+        if (onCallCycleInterval) {
+            clearInterval(onCallCycleInterval);
+            onCallCycleInterval = null;
+        }
+        if (onCallCountdownCard) {
+            onCallCountdownCard.style.display = 'none';
+        }
+        return;
+    }
+
+    if (onCallCountdownCard) {
+        onCallCountdownCard.style.display = 'block';
+    }
+
+    const dueAt = presence.onCallCheckinDueAt ? new Date(presence.onCallCheckinDueAt).getTime() : (Date.now() + 1800000);
+    const deadline = presence.onCallCheckinDeadline ? new Date(presence.onCallCheckinDeadline).getTime() : null;
+    const isGracePeriod = Boolean(presence.onCallCheckinActive && deadline);
+
+    const renderTick = () => {
+        const now = Date.now();
+        if (isGracePeriod) {
+            const secondsLeft = Math.max(0, Math.ceil((deadline - now) / 1000));
+            const m = Math.floor(secondsLeft / 60);
+            const s = secondsLeft % 60;
+            if (onCallCycleTimer) {
+                onCallCycleTimer.textContent = `${pad(m)}:${pad(s)}`;
+                onCallCycleTimer.classList.add('urgent');
+            }
+            if (onCallCycleProgressBar) {
+                onCallCycleProgressBar.style.width = `${Math.min(100, Math.max(0, (secondsLeft / 300) * 100))}%`;
+            }
+            if (onCallCycleStatusText) {
+                onCallCycleStatusText.innerHTML = `⚠️ <strong>Confirmation in progress:</strong> ${secondsLeft}s remaining!`;
+                onCallCycleStatusText.style.color = '#f87171';
+            }
+        } else {
+            const secondsLeft = Math.max(0, Math.ceil((dueAt - now) / 1000));
+            const m = Math.floor(secondsLeft / 60);
+            const s = secondsLeft % 60;
+            if (onCallCycleTimer) {
+                onCallCycleTimer.textContent = `${pad(m)}:${pad(s)}`;
+                onCallCycleTimer.classList.remove('urgent');
+            }
+            if (onCallCycleProgressBar) {
+                onCallCycleProgressBar.style.width = `${Math.min(100, Math.max(0, (secondsLeft / 1800) * 100))}%`;
+            }
+            if (onCallCycleStatusText) {
+                onCallCycleStatusText.textContent = `Next check-in required in ${m}m ${pad(s)}s`;
+                onCallCycleStatusText.style.color = '#e5e5e5';
+            }
+        }
+    };
+
+    renderTick();
+
+    if (onCallCycleInterval) {
+        clearInterval(onCallCycleInterval);
+    }
+    onCallCycleInterval = setInterval(renderTick, 1000);
 }
 
 function updateTimerDisplay(totalSeconds = 0) {
