@@ -554,7 +554,7 @@ function createWindow() {
         show: true,
     });
 
-    mainWindow.loadFile('index.html').catch((error) => {
+    mainWindow.loadFile(path.join(__dirname, 'index.html')).catch((error) => {
         writeStartupLog(`loadFile failed: ${error.message}`);
     });
 
