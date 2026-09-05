@@ -364,15 +364,16 @@ function clearOnCallCheckin(options = {}) {
     }
 }
 
-function startOnCallCheckinCycle() {
+function startOnCallCheckinCycle(explicitDueAt = null) {
     clearOnCallCheckin({ notifyRenderer: true });
-    onCallCheckinDueAt = Date.now() + ON_CALL_CHECKIN_INTERVAL_MS;
-    logToFile(`Starting on-call check-in timer for ${ON_CALL_CHECKIN_INTERVAL_MS / 60000} mins.`);
+    onCallCheckinDueAt = explicitDueAt && explicitDueAt > Date.now() ? explicitDueAt : (Date.now() + ON_CALL_CHECKIN_INTERVAL_MS);
+    const delay = Math.max(1000, onCallCheckinDueAt - Date.now());
+    logToFile(`Starting on-call check-in timer for ${Math.round(delay / 60000)} mins.`);
     sendPresenceUpdate();
     queuePresenceSync('on-call-cycle-started');
     onCallCheckinTimerId = setTimeout(() => {
         triggerOnCallCheckin();
-    }, ON_CALL_CHECKIN_INTERVAL_MS);
+    }, delay);
 }
 
 async function triggerOnCallCheckin() {
@@ -409,10 +410,32 @@ async function triggerOnCallCheckin() {
         });
     }
 
+    let graceRemoteCheckCounter = 0;
     onCallGraceCheckIntervalId = setInterval(async () => {
         if (!onCallCheckinActive || !isTracking || !onCall) {
             clearOnCallCheckin({ notifyRenderer: true });
             return;
+        }
+
+        // Check if employee confirmed on-call checkin remotely from web dashboard
+        if (graceRemoteCheckCounter++ % 2 === 0 && currentUserId) {
+            try {
+                const remoteState = await getUserState(currentUserId);
+                if (remoteState && !remoteState.onCallCheckinActive && remoteState.onCallCheckinDueAt) {
+                    const remoteDueMs = new Date(remoteState.onCallCheckinDueAt).getTime();
+                    if (remoteDueMs > Date.now()) {
+                        logToFile('Teammate confirmed on-call check-in remotely from web dashboard. Resuming on-call cycle.');
+                        clearOnCallCheckin();
+                        if (mainWindow && !mainWindow.isDestroyed()) {
+                            mainWindow.webContents.send('on-call-checkin-dismissed');
+                        }
+                        startOnCallCheckinCycle(remoteDueMs);
+                        return;
+                    }
+                }
+            } catch {
+                // Ignore transient S3 read error in grace check
+            }
         }
 
         const msRemaining = onCallCheckinDeadline - Date.now();
@@ -928,13 +951,29 @@ function ensureHeartbeatLoop() {
         return;
     }
 
-    heartbeatIntervalId = setInterval(() => {
+    heartbeatIntervalId = setInterval(async () => {
         if (!currentUserId) {
             return;
         }
 
         queuePresenceSync('heartbeat');
         fetchFlags(currentUserId);
+
+        // Check if on-call timer was extended remotely from web dashboard
+        if (isTracking && onCall && !onCallCheckinActive) {
+            try {
+                const remoteState = await getUserState(currentUserId);
+                if (remoteState && remoteState.onCallCheckinDueAt) {
+                    const remoteDueMs = new Date(remoteState.onCallCheckinDueAt).getTime();
+                    if (remoteDueMs > (onCallCheckinDueAt || 0) + 10000) {
+                        logToFile('Detected remote on-call timer extension from web dashboard. Rescheduling check-in cycle.');
+                        startOnCallCheckinCycle(remoteDueMs);
+                    }
+                }
+            } catch {
+                // Ignore transient check error
+            }
+        }
     }, HEARTBEAT_INTERVAL_MS);
 }
 

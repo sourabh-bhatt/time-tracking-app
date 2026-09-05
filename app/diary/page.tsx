@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import FlagReviewPanel from "../components/FlagReviewPanel";
+import LivePresencePanel from "../components/LivePresencePanel";
 import TimeZoneClock from "../components/TimeZoneClock";
 import ScreenshotGallery, { LogEntry } from "../components/ScreenshotGallery";
 import { EASTERN_TIMEZONE, getEasternDateDisplay, getHourInTimeZone } from "../components/timeZoneUtils";
@@ -9,6 +10,7 @@ import {
     TRACKING_TIMEZONE,
     addDays,
     getLatestLogDate,
+    getPresenceSummaries,
     getTrackingStats,
     parseDateKey,
     getWeekStartDateKey,
@@ -23,13 +25,17 @@ export const dynamic = "force-dynamic";
 export default async function Diary(props: { searchParams: Promise<{ user?: string; date?: string }> }) {
     const cookieStore = await cookies();
     const isAdmin = cookieStore.has("admin_session");
-    const employeeUser = cookieStore.has("sourabh_session") ? "sourabh" : "prayash";
+    const isSourabh = cookieStore.has("sourabh_session");
+    const currentUser = isAdmin ? "admin" : (isSourabh ? "sourabh" : "prayash");
+    const employeeUser = isSourabh ? "sourabh" : "prayash";
     const searchParams = await props.searchParams;
     const selectedUser = isAdmin ? (searchParams.user || "sourabh") : employeeUser;
     const requestedDateStr = searchParams.date || toDateParts(new Date()).dateKey;
     const latestLogDate = await getLatestLogDate(selectedUser);
     const selectedDateStr = searchParams.date || latestLogDate || requestedDateStr;
     const selectedDate = parseDateKey(selectedDateStr);
+    const presenceUsers = isAdmin ? ["sourabh", "prayash"] : [selectedUser];
+    const initialPresence = await getPresenceSummaries(presenceUsers);
     const flags = await listFlagsForUser(selectedUser, { includeHidden: isAdmin });
 
     const logs = await listLogsForDate(selectedUser, selectedDateStr) as LogEntry[];
@@ -84,6 +90,7 @@ export default async function Diary(props: { searchParams: Promise<{ user?: stri
             </header>
 
             <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
+                <LivePresencePanel initialPresence={initialPresence} users={presenceUsers} currentUser={currentUser} />
                 <FlagReviewPanel flags={flags} isAdmin={isAdmin} />
                 <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-[#1e1e1e] p-4 rounded-xl border border-[#333] gap-6 md:gap-0">
                     <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto justify-center">

@@ -115,12 +115,54 @@ async function fetchPresence(users: string[]) {
 export default function LivePresencePanel({
     initialPresence,
     users,
+    currentUser,
 }: {
     initialPresence: PresenceSummary[];
     users: string[];
+    currentUser?: string;
 }) {
     const [presence, setPresence] = useState<PresenceSummary[]>(initialPresence);
     const [, setTick] = useState(0);
+    const [loadingUser, setLoadingUser] = useState<string | null>(null);
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+    const handleContinueCall = async (targetUserId: string) => {
+        setLoadingUser(targetUserId);
+        try {
+            const res = await fetch("/api/presence/continue", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId: targetUserId }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.error || "Failed to extend on-call timer");
+            }
+
+            const newDueAt = data.onCallCheckinDueAt || new Date(Date.now() + 1800000).toISOString();
+            setPresence((prev) =>
+                prev.map((item) =>
+                    item.userId === targetUserId
+                        ? {
+                              ...item,
+                              onCallCheckinActive: false,
+                              onCallCheckinDeadline: null,
+                              onCallCheckinDueAt: newDueAt,
+                              onCallCheckinSecondsRemaining: 1800,
+                          }
+                        : item
+                )
+            );
+            setToastMessage(`✓ On-call timer for ${targetUserId} extended by 30 minutes!`);
+            setTimeout(() => setToastMessage(null), 4000);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Error extending on-call timer";
+            setToastMessage(`❌ ${message}`);
+            setTimeout(() => setToastMessage(null), 4000);
+        } finally {
+            setLoadingUser(null);
+        }
+    };
 
     useEffect(() => {
         let mounted = true;
@@ -158,7 +200,13 @@ export default function LivePresencePanel({
     }
 
     return (
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <section className="relative grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            {toastMessage && (
+                <div className="fixed top-6 right-6 z-50 bg-[#14a800] text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-xl animate-fade-in flex items-center gap-2">
+                    <span>{toastMessage}</span>
+                </div>
+            )}
+
             {sortedPresence.map((entry) => {
                 const primaryDetail = entry.status === "on-call" || entry.status === "manual-on-call"
                     ? "Call mode is active. Idle is suppressed while the call toggle stays on."
@@ -188,24 +236,30 @@ export default function LivePresencePanel({
                 const nowMs = Date.now();
                 let onCallCountdownDisplay: string | null = null;
                 let onCallIsUrgent = false;
+                let onCallSecondsLeft: number | null = null;
 
                 if ((entry.status === "on-call" || entry.status === "manual-on-call") && entry.onCall) {
                     if (entry.onCallCheckinActive && entry.onCallCheckinDeadline) {
                         const deadlineMs = new Date(entry.onCallCheckinDeadline).getTime();
-                        const secondsLeft = Math.max(0, Math.ceil((deadlineMs - nowMs) / 1000));
-                        const m = Math.floor(secondsLeft / 60);
-                        const s = secondsLeft % 60;
+                        onCallSecondsLeft = Math.max(0, Math.ceil((deadlineMs - nowMs) / 1000));
+                        const m = Math.floor(onCallSecondsLeft / 60);
+                        const s = onCallSecondsLeft % 60;
                         onCallCountdownDisplay = `${m}:${s < 10 ? "0" : ""}${s}`;
                         onCallIsUrgent = true;
                     } else if (entry.onCallCheckinDueAt) {
                         const dueMs = new Date(entry.onCallCheckinDueAt).getTime();
-                        const secondsLeft = Math.max(0, Math.ceil((dueMs - nowMs) / 1000));
-                        const m = Math.floor(secondsLeft / 60);
-                        const s = secondsLeft % 60;
+                        onCallSecondsLeft = Math.max(0, Math.ceil((dueMs - nowMs) / 1000));
+                        const m = Math.floor(onCallSecondsLeft / 60);
+                        const s = onCallSecondsLeft % 60;
                         onCallCountdownDisplay = `${m}:${s < 10 ? "0" : ""}${s}`;
-                        onCallIsUrgent = secondsLeft <= 60;
+                        onCallIsUrgent = onCallSecondsLeft <= 60;
                     }
                 }
+
+                const isTimeLess = Boolean(
+                    entry.onCallCheckinActive || (onCallSecondsLeft !== null && onCallSecondsLeft <= 600)
+                );
+                const isSelfOrAdmin = !currentUser || currentUser === "admin" || currentUser === entry.userId;
 
                 return (
                     <div
@@ -250,8 +304,57 @@ export default function LivePresencePanel({
                                         </span>
                                     )}
                                 </div>
+
+                                {isSelfOrAdmin && (
+                                    <div className="mt-3 pt-2.5 border-t border-white/10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                                        <div className="text-[11px] text-gray-400">
+                                            {entry.onCallCheckinActive ? (
+                                                <span className="text-red-400 font-medium">⚠️ Check-in required: click continue to confirm!</span>
+                                            ) : isTimeLess ? (
+                                                <span className="text-amber-300 font-medium">⏳ Time is low ({onCallCountdownDisplay}): click continue to extend.</span>
+                                            ) : (
+                                                <span className="text-gray-400">On-call timer active ({onCallCountdownDisplay || "30m"}).</span>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => handleContinueCall(entry.userId)}
+                                            disabled={loadingUser === entry.userId}
+                                            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer ${
+                                                entry.onCallCheckinActive
+                                                    ? "bg-red-600 hover:bg-red-500 text-white animate-pulse shadow-red-600/30 border border-red-400"
+                                                    : isTimeLess
+                                                        ? "bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/30 border border-amber-400"
+                                                        : "bg-[#252525] hover:bg-[#333] text-gray-300 hover:text-white border border-[#444]"
+                                            }`}
+                                            title="Click to continue on call and reset timer to 30 minutes"
+                                        >
+                                            {loadingUser === entry.userId ? (
+                                                <>
+                                                    <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                                    <span>Continuing...</span>
+                                                </>
+                                            ) : entry.onCallCheckinActive ? (
+                                                <>
+                                                    <span>📞</span>
+                                                    <span>Confirm & Continue</span>
+                                                </>
+                                            ) : isTimeLess ? (
+                                                <>
+                                                    <span>⚡</span>
+                                                    <span>Continue Call (+30m)</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span>⏱️</span>
+                                                    <span>Continue Call (+30m)</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                )}
+
                                 <div className="mt-2.5 text-[11px] text-gray-400 leading-relaxed border-t border-white/10 pt-2">
-                                    <span className="font-semibold text-gray-300">📌 On-Call Check-in Policy:</span> Teammate must confirm active status every 30 mins. A 5-minute confirmation prompt will appear on their desktop. If unconfirmed, tracking auto-stops and the session is flagged as discontinued.
+                                    <span className="font-semibold text-gray-300">📌 On-Call Check-in Policy:</span> Teammate must confirm active status every 30 mins. When time is low, click <strong className="text-amber-300">Continue</strong> above or confirm the desktop prompt to keep time tracking active without interruption.
                                 </div>
                             </div>
                         )}

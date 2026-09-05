@@ -28,6 +28,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
   const cookieStore = await cookies();
   const isAdmin = cookieStore.has("admin_session");
   const isSourabh = cookieStore.has("sourabh_session");
+  const currentUser = isAdmin ? "admin" : (isSourabh ? "sourabh" : "prayash");
 
   const searchParams = await props.searchParams;
   let selectedUser = searchParams.user || (isAdmin ? "sourabh" : (isSourabh ? "sourabh" : "prayash"));
@@ -114,7 +115,7 @@ export default async function Home(props: { searchParams: Promise<{ user?: strin
       </header>
 
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
-        <LivePresencePanel initialPresence={initialPresence} users={presenceUsers} />
+        <LivePresencePanel initialPresence={initialPresence} users={presenceUsers} currentUser={currentUser} />
         <FlagReviewPanel flags={flags} isAdmin={isAdmin} />
 
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-[#1e1e1e] p-4 rounded-xl border border-[#333] gap-6 md:gap-0">

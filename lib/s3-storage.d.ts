@@ -35,6 +35,7 @@ export interface UserState {
     onCallCheckinDueAt?: string | null;
     onCallCheckinActive?: boolean;
     onCallCheckinDeadline?: string | null;
+    onCallCheckinConfirmedAt?: string | null;
     trackingStartedAt: string | null;
     activeSince: string | null;
     idleSince: string | null;
@@ -62,6 +63,7 @@ export interface PresenceSummary {
     onCallCheckinActive?: boolean;
     onCallCheckinDeadline?: string | null;
     onCallCheckinSecondsRemaining?: number | null;
+    onCallCheckinConfirmedAt?: string | null;
     platform: string | null;
     trackingStartedAt: string | null;
     manualPresenceSince: string | null;
@@ -131,6 +133,9 @@ export function deleteLogById(id: string): Promise<LogRecord | null>;
 export function deleteLogsByIds(ids: string[]): Promise<{ deletedCount: number; deletedIds: string[] }>;
 export function getAllTimeAutoCount(userId: string): Promise<number>;
 export function getDateKeysInRange(startDateKey: string, endDateKey: string): string[];
+export function deleteLogsByIds(ids: string[]): Promise<{ deletedCount: number; deletedIds: string[] }>;
+export function getAllTimeAutoCount(userId: string): Promise<number>;
+export function getDateKeysInRange(startDateKey: string, endDateKey: string): string[];
 export function getImageById(id: string): Promise<{ buffer: Buffer; contentType: string } | null>;
 export function getFlagById(id: string): Promise<FlagRecord | null>;
 export function getLogById(id: string): Promise<LogRecord | null>;
@@ -145,6 +150,7 @@ export function listLogsForDateRange(userId: string, startDate: Date | string, e
 export function listFlagsForUser(userId: string, options?: { includeHidden?: boolean }): Promise<FlagRecord[]>;
 export function normalizeUserId(userId: string): string;
 export function parseDateKey(dateKey: string): Date;
+export function resetOnCallCheckin(userId: string): Promise<UserState>;
 export function saveLogEntry(input: {
     id?: string;
     userId: string;
