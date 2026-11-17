@@ -32,6 +32,13 @@ the existing storage settings. New Windows and electron-builder packages exclude
 secrets. Build the portable Windows app with `npm run build:portable-win`; the
 existing launchers will use that output after the running app is closed.
 
+**Windows launch requirement:** the unsigned November 17 portable EXE is blocked
+by Smart App Control. Portable release builds now require a trusted signing identity and
+verify Windows binary signatures. No identity is configured yet, so a working
+signed standalone release is still pending. See [Windows signing setup](docs/windows-signing.md).
+Use `npm run build:portable-win:dev` only for an explicitly unsigned development
+artifact; it is placed in a separate folder and may also be blocked by Windows.
+
 **Remaining architecture risk:** the desktop still accesses S3 directly. Anyone
 who receives its AWS credentials can exercise the IAM permissions attached to
 those credentials, independent of the app's user selector. Give each employee

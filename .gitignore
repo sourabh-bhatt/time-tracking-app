@@ -15,6 +15,12 @@
 dist/
 /portable-dist
 portable-dist/
+/portable-dev-dist
+
+# Private code-signing material must stay outside source control.
+*.pfx
+*.p12
+*.key
 
 # testing
 /coverage
