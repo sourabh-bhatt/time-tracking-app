@@ -7,6 +7,8 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const session = await getSessionContext();
+        if (!session) return new NextResponse('Unauthorized', { status: 401 });
         const { id } = await params;
 
         if (!id) {
@@ -14,7 +16,8 @@ export async function GET(
         }
 
         const record = await getLogById(id);
-        if (record && !canAccessUser(await getSessionContext(), record.userId)) {
+        if (!record) return new NextResponse('Image not found', { status: 404 });
+        if (!canAccessUser(session, record.userId)) {
             return new NextResponse("Forbidden", { status: 403 });
         }
         const image = await getImageById(id);
@@ -26,7 +29,9 @@ export async function GET(
         return new NextResponse(new Uint8Array(image.buffer), {
             headers: {
                 "Content-Type": image.contentType || "image/png",
-                "Cache-Control": "public, max-age=31536000, immutable",
+                "Cache-Control": "private, no-store",
+                "Vary": "Cookie",
+                "X-Content-Type-Options": "nosniff",
             },
         });
     } catch (error) {

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { canAccessUser, getSessionContext } from "../lib/auth";
 import { updateWeeklyReport } from "../lib/google-sheets";
 import { getEasternWeekday } from "./components/timeZoneUtils";
 import {
@@ -14,6 +15,11 @@ import {
 } from "../lib/s3-storage";
 
 export async function updateManualEarnings(userId: string, data: { weeklyPaid: number; weeklyPending: number; totalPending: number }) {
+    if ((await getSessionContext())?.role !== 'admin') throw new Error('Admin access required');
+    if (!['sourabh', 'prayash'].includes(userId)
+        || ![data.weeklyPaid, data.weeklyPending, data.totalPending].every((value) => Number.isFinite(value) && value >= 0)) {
+        throw new Error('Invalid earnings data');
+    }
     await saveUserState(userId, {
         manual_weekly_paid: data.weeklyPaid,
         manual_weekly_pending: data.weeklyPending,
@@ -24,6 +30,7 @@ export async function updateManualEarnings(userId: string, data: { weeklyPaid: n
 }
 
 export async function getManualEarnings(userId: string) {
+    if (!canAccessUser(await getSessionContext(), userId)) throw new Error('Forbidden');
     const state = await getUserState(userId);
 
     return {
@@ -34,6 +41,7 @@ export async function getManualEarnings(userId: string) {
 }
 
 export async function syncWeeklyReport(userId: string, dateStr: string) {
+    if (!canAccessUser(await getSessionContext(), userId)) throw new Error('Forbidden');
     const weekStartKey = getWeekStartDateKey(dateStr);
     const weekEndKey = addDays(weekStartKey, 6);
     const [logs, state, trackingStats] = await Promise.all([

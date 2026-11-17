@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { ipcRenderer } = require('electron');
+const ipcRenderer = window.tracker;
 
 const loginContainer = document.getElementById('login-container');
 const mainContainer = document.getElementById('main-container');
@@ -145,32 +144,20 @@ function renderLoginButtons() {
         return;
     }
 
-    if (envUser === 'prayash') {
-        btnContainer.innerHTML = `
-            <button class="btn user-btn" onclick="login('prayash')" style="background-color: #2c2c2c; width: 200px;">
-                <i class="fas fa-user-circle" style="margin-right: 10px;"></i> Prayash
-            </button>
-        `;
-        return;
+    btnContainer.replaceChildren();
+    const users = ['sourabh', 'prayash'].includes(envUser) ? [envUser] : ['sourabh', 'prayash'];
+    for (const user of users) {
+        const button = document.createElement('button');
+        button.className = 'btn user-btn';
+        button.style.width = '200px';
+        if (user === 'prayash') button.style.backgroundColor = '#2c2c2c';
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-user-circle';
+        icon.style.marginRight = '10px';
+        button.append(icon, user === 'sourabh' ? ' Admin' : ' Prayash');
+        button.addEventListener('click', () => window.login(user));
+        btnContainer.append(button);
     }
-
-    if (envUser === 'sourabh') {
-        btnContainer.innerHTML = `
-            <button class="btn user-btn" onclick="login('sourabh')" style="width: 200px;">
-                <i class="fas fa-user-circle" style="margin-right: 10px;"></i> Admin
-            </button>
-        `;
-        return;
-    }
-
-    btnContainer.innerHTML = `
-        <button class="btn user-btn" onclick="login('sourabh')" style="width: 200px;">
-            <i class="fas fa-user-circle" style="margin-right: 10px;"></i> Admin
-        </button>
-        <button class="btn user-btn" onclick="login('prayash')" style="background-color: #2c2c2c; width: 200px;">
-            <i class="fas fa-user-circle" style="margin-right: 10px;"></i> Prayash
-        </button>
-    `;
 }
 
 function setPresenceTheme(theme) {
@@ -323,6 +310,11 @@ window.openDiary = () => {
     const url = `https://time-tracking-app-two-nu.vercel.app/diary?user=${currentUser}`;
     ipcRenderer.send('open-external', url);
 };
+
+document.getElementById('viewDiaryLink').addEventListener('click', (event) => {
+    event.preventDefault();
+    window.openDiary();
+});
 
 ipcRenderer.on('init-user', (_event, userId) => {
     currentUser = userId;

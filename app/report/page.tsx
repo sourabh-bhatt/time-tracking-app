@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { getSessionContext } from "../../lib/auth";
 import DownloadReportButton from "../components/DownloadReportButton";
 import TimeZoneClock from "../components/TimeZoneClock";
 import { EASTERN_TIMEZONE, getEasternDateShort, getEasternDateWithYear, getEasternWeekday } from "../components/timeZoneUtils";
@@ -57,9 +58,10 @@ function formatDuration(seconds: number) {
 }
 
 export default async function ReportPage(props: { searchParams: Promise<{ date?: string; user?: string }> }) {
-    const cookieStore = await cookies();
-    const isAdmin = cookieStore.has("admin_session");
-    const isSourabh = cookieStore.has("sourabh_session");
+    const session = await getSessionContext();
+    if (!session) redirect('/login');
+    const isAdmin = session.role === 'admin';
+    const isSourabh = session.userId === 'sourabh';
 
     const searchParams = await props.searchParams;
     let selectedUser = searchParams.user || (isAdmin ? "sourabh" : (isSourabh ? "sourabh" : "prayash"));

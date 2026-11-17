@@ -1,13 +1,12 @@
 import { cookies } from "next/headers";
+import { SESSION_COOKIE, verifySessionToken } from "./session";
+import type { SessionContext } from "./session";
 
-export type SessionContext = { role: "admin"; userId: null } | { role: "employee"; userId: string } | null;
+export type { SessionContext } from "./session";
 
 export async function getSessionContext(): Promise<SessionContext> {
     const store = await cookies();
-    if (store.has("admin_session")) return { role: "admin", userId: null };
-    if (store.has("sourabh_session")) return { role: "employee", userId: "sourabh" };
-    if (store.has("prayash_session")) return { role: "employee", userId: "prayash" };
-    return null;
+    return verifySessionToken(store.get(SESSION_COOKIE)?.value);
 }
 
 export function canAccessUser(session: SessionContext, userId: string) {

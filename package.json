@@ -13,9 +13,12 @@
     "build:linux": "electron-builder --linux AppImage deb",
     "build:linux:arm64": "electron-builder --linux AppImage deb --arm64",
     "build:linux:arm64:appimage": "electron-builder --linux AppImage --arm64",
-    "build:portable-win": "electron-packager . \"Time Tracker\" --platform=win32 --arch=x64 --out portable-dist --overwrite --asar=false --prune=false --ignore=\"^/(\\.(next|git)|portable-dist|dist|out|app)\"",
+    "build:portable-win": "node scripts/build-portable-win.js",
     "lint": "eslint",
-    "migrate:s3": "node scripts/migrate-mongo-to-s3.js"
+    "migrate:s3": "node scripts/migrate-mongo-to-s3.js",
+    "test": "node --test tests/*.test.js",
+    "verify:desktop": "electron scripts/verify-desktop.js",
+    "auth:hash-password": "node scripts/hash-password.js"
   },
   "keywords": [],
   "author": {
@@ -29,25 +32,25 @@
     "dotenv": "^17.4.0",
     "express": "^5.2.1",
     "googleapis": "^169.0.0",
-    "jspdf": "^3.0.4",
+    "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.2",
     "mongodb": "^7.0.0",
-    "next": "16.0.7",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "screenshot-desktop": "^1.15.0",
     "uiohook-napi": "^1.5.4"
   },
   "devDependencies": {
+    "@electron/packager": "^20.3.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "electron": "^33.2.1",
-    "electron-builder": "^25.1.8",
-    "electron-packager": "^17.1.2",
+    "electron": "^45.3.3",
+    "electron-builder": "^26.18.0",
     "eslint": "^9",
-    "eslint-config-next": "16.0.7",
+    "eslint-config-next": "^16.4.6",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
@@ -79,6 +82,18 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
-    }
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "index.html",
+      "styles.css",
+      "lib/s3-storage.js",
+      "lib/windows-capture.js",
+      "public/**/*",
+      ".env.desktop",
+      "package.json"
+    ]
   }
 }

@@ -1,12 +1,12 @@
-import { cookies } from "next/headers";
+import { getSessionContext } from "../../../lib/auth";
 import { NextResponse } from "next/server";
 import { getUserState, saveUserState } from "../../../lib/s3-storage";
 
 export const dynamic = "force-dynamic";
 
 async function hasSourabhSession() {
-    const cookieStore = await cookies();
-    return cookieStore.has("sourabh_session");
+    const session = await getSessionContext();
+    return session?.role === 'employee' && session.userId === 'sourabh';
 }
 
 export async function GET() {

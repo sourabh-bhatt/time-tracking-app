@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { app, BrowserWindow, ipcMain, powerMonitor, shell } = require('electron');
+const { app, BrowserWindow, desktopCapturer, screen, ipcMain, powerMonitor, shell } = require('electron');
 const { execFile, spawn } = require('child_process');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 const screenshot = require('screenshot-desktop');
+const { captureWindowsScreenshot } = require('./lib/windows-capture');
 const { promisify } = require('util');
 const {
     IDLE_THRESHOLD_SECONDS,
@@ -12,6 +14,7 @@ const {
     TRACKING_TIMEZONE,
     createFlag,
     deleteLogById,
+    getLogById,
     getTrackingStats,
     listFlagsForUser,
     getUserState,
@@ -568,14 +571,20 @@ function createWindow() {
         width: 450,
         height: 760,
         webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false,
+            nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: true,
+            preload: path.join(__dirname, 'preload.js'),
         },
         autoHideMenuBar: true,
         backgroundColor: '#121212',
         icon: path.join(__dirname, 'public', 'time-tracker-linux.png'),
         show: true,
     });
+
+    mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    mainWindow.webContents.on('will-navigate', (event) => event.preventDefault());
+    mainWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
 
     mainWindow.loadFile(path.join(__dirname, 'index.html')).catch((error) => {
         writeStartupLog(`loadFile failed: ${error.message}`);
@@ -814,6 +823,10 @@ async function captureLinuxScreenshotBuffer() {
 }
 
 async function captureScreenshotBuffer() {
+    if (process.platform === 'win32') {
+        return captureWindowsScreenshot({ desktopCapturer, screen });
+    }
+
     if (process.platform === 'linux') {
         return captureLinuxScreenshotBuffer();
     }
@@ -824,6 +837,8 @@ async function captureScreenshotBuffer() {
 async function captureAndLog(type = 'auto', options = {}) {
     if (!currentUserId || !isTracking) return null;
 
+    const captureUserId = currentUserId;
+    const captureSession = trackingStartedAt;
     const captureStartedAt = Date.now();
     syncSystemActivity(captureStartedAt);
 
@@ -841,10 +856,16 @@ async function captureAndLog(type = 'auto', options = {}) {
             console.error('Screenshot failed:', screenshotErr);
             logToFile(`Screenshot failed: ${screenshotErr.message}`);
 
+            const blockedByPolicy = /device guard|application control|blocked by.*policy/i.test(
+                [screenshotErr.message, screenshotErr.stderr].filter(Boolean).join('\n'),
+            );
+
             if (mainWindow) {
                 mainWindow.webContents.send('show-notification', {
-                    title: 'Screenshot Failed',
-                    body: process.platform === 'linux'
+                    title: blockedByPolicy ? 'Screenshot Blocked by Security Policy' : 'Screenshot Failed',
+                    body: blockedByPolicy
+                        ? 'Windows blocked the capture helper. Ask your device administrator to approve it. This screenshot was not saved.'
+                        : process.platform === 'linux'
                         ? 'Install gnome-screenshot or another Linux screenshot tool.'
                         : 'Unable to capture the screen.',
                 });
@@ -854,14 +875,14 @@ async function captureAndLog(type = 'auto', options = {}) {
         }
 
         syncSystemActivity(Date.now());
-        if (!isTracking || updateIdleState(Date.now())) {
+        if (!isTracking || currentUserId !== captureUserId || trackingStartedAt !== captureSession || updateIdleState(Date.now())) {
             logToFile(`Discarded ${type} screenshot because tracking stopped or the user became idle.`);
             return null;
         }
 
         const timestamp = new Date();
         const savedLog = await saveLogEntry({
-            userId: currentUserId,
+            userId: captureUserId,
             timestamp,
             imageBuffer: imgBuffer,
             activity: { ...inputCounts },
@@ -872,6 +893,7 @@ async function captureAndLog(type = 'auto', options = {}) {
             countsTowardTime: Boolean(options.countsTowardTime),
         });
 
+        if (currentUserId !== captureUserId || trackingStartedAt !== captureSession) return savedLog;
         await fetchStats(currentUserId);
 
         if (mainWindow) {
@@ -897,7 +919,13 @@ async function captureAndLog(type = 'auto', options = {}) {
         return savedLog;
     } catch (error) {
         console.error('Error capturing/logging:', error);
-        logToFile(`Critical Error in captureAndLog: ${error.message}`);
+        logToFile(`Screenshot storage failed: ${error.message}`);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('show-notification', {
+                title: 'Screenshot Save Failed',
+                body: 'The screen was captured, but saving failed. Check your connection and storage configuration.',
+            });
+        }
         return null;
     }
 }
@@ -1001,8 +1029,22 @@ async function markUserOffline() {
     }
 }
 
-ipcMain.on('user-login', async (event, userId) => {
+function onRendererMessage(channel, handler) {
+    ipcMain.on(channel, (event, ...args) => {
+        if (!mainWindow || mainWindow.isDestroyed()
+            || event.sender !== mainWindow.webContents
+            || event.senderFrame !== mainWindow.webContents.mainFrame
+            || event.senderFrame.url !== pathToFileURL(path.join(__dirname, 'index.html')).href) return;
+        Promise.resolve().then(() => handler(event, ...args)).catch((error) => {
+            logToFile(`Tracker command ${channel} failed: ${error.message}`);
+        });
+    });
+}
+
+onRendererMessage('user-login', async (event, userId) => {
     const nextUserId = normalizeUserId(userId);
+    const configuredUser = normalizeUserId(process.env.USER_ID || '');
+    if (!['sourabh', 'prayash'].includes(nextUserId) || (configuredUser && nextUserId !== configuredUser)) return;
 
     if (currentUserId && currentUserId !== nextUserId) {
         await markUserOffline();
@@ -1027,15 +1069,15 @@ ipcMain.on('user-login', async (event, userId) => {
     await fetchFlags(currentUserId);
 });
 
-ipcMain.on('update-memo', (_event, memo) => {
-    currentMemo = memo;
+onRendererMessage('update-memo', (_event, memo) => {
+    if (typeof memo === 'string' && memo.length <= 10000) currentMemo = memo;
 });
 
-ipcMain.on('set-on-call', async (_event, value) => {
+onRendererMessage('set-on-call', async (_event, value) => {
     await setOnCallMode(value);
 });
 
-ipcMain.on('start-tracking', async () => {
+onRendererMessage('start-tracking', async () => {
     if (isTracking) return;
 
     const now = Date.now();
@@ -1060,7 +1102,7 @@ ipcMain.on('start-tracking', async () => {
     startRandomCycle();
 });
 
-ipcMain.on('stop-tracking', async () => {
+onRendererMessage('stop-tracking', async () => {
     isTracking = false;
     trackingStartedAt = null;
     activeSince = null;
@@ -1077,7 +1119,7 @@ ipcMain.on('stop-tracking', async () => {
     resetActivityCounters();
 });
 
-ipcMain.on('confirm-on-call-checkin', () => {
+onRendererMessage('confirm-on-call-checkin', () => {
     if (!onCallCheckinActive) return;
     logToFile('Teammate confirmed on-call check-in. Resuming on-call cycle.');
     clearOnCallCheckin();
@@ -1087,10 +1129,13 @@ ipcMain.on('confirm-on-call-checkin', () => {
     startOnCallCheckinCycle();
 });
 
-ipcMain.on('delete-screenshot', async (_event, id) => {
+onRendererMessage('delete-screenshot', async (_event, id) => {
     if (!currentUserId) return;
 
     try {
+        if (typeof id !== 'string') return;
+        const record = await getLogById(id);
+        if (!record || record.userId !== currentUserId) return;
         await deleteLogById(id);
         await fetchStats(currentUserId);
     } catch (error) {
@@ -1099,7 +1144,7 @@ ipcMain.on('delete-screenshot', async (_event, id) => {
     }
 });
 
-ipcMain.on('get-manual-earnings', async (event) => {
+onRendererMessage('get-manual-earnings', async (event) => {
     if (!currentUserId) return;
 
     try {
@@ -1114,7 +1159,7 @@ ipcMain.on('get-manual-earnings', async (event) => {
     }
 });
 
-ipcMain.on('update-manual-earnings', async (event, data) => {
+onRendererMessage('update-manual-earnings', async (event, data) => {
     if (!currentUserId) return;
 
     try {
@@ -1135,8 +1180,11 @@ ipcMain.on('update-manual-earnings', async (event, data) => {
     }
 });
 
-ipcMain.on('open-external', (_event, url) => {
-    shell.openExternal(url);
+onRendererMessage('open-external', (_event, url) => {
+    if (typeof url !== 'string') return;
+    const target = new URL(url);
+    if (target.origin !== 'https://time-tracking-app-two-nu.vercel.app' || target.pathname !== '/diary') return;
+    return shell.openExternal(target.href);
 });
 
 app.on('ready', async () => {

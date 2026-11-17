@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { getSessionContext } from "../../lib/auth";
 import FlagReviewPanel from "../components/FlagReviewPanel";
 import LivePresencePanel from "../components/LivePresencePanel";
 import TimeZoneClock from "../components/TimeZoneClock";
@@ -23,9 +24,10 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function Diary(props: { searchParams: Promise<{ user?: string; date?: string }> }) {
-    const cookieStore = await cookies();
-    const isAdmin = cookieStore.has("admin_session");
-    const isSourabh = cookieStore.has("sourabh_session");
+    const session = await getSessionContext();
+    if (!session) redirect('/login');
+    const isAdmin = session.role === 'admin';
+    const isSourabh = session.userId === 'sourabh';
     const currentUser = isAdmin ? "admin" : (isSourabh ? "sourabh" : "prayash");
     const employeeUser = isSourabh ? "sourabh" : "prayash";
     const searchParams = await props.searchParams;

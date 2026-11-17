@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { getSessionContext } from "../../../lib/auth";
 import { getPresenceSummaries, normalizeUserId } from "../../../lib/s3-storage";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-    const cookieStore = await cookies();
-    const isAdmin = cookieStore.has("admin_session");
-    const isSourabh = cookieStore.has("sourabh_session");
-    const isPrayash = cookieStore.has("prayash_session");
+    const session = await getSessionContext();
+    const isAdmin = session?.role === 'admin';
+    const isSourabh = session?.userId === 'sourabh';
+    const isPrayash = session?.userId === 'prayash';
 
     if (!isAdmin && !isSourabh && !isPrayash) {
         return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
