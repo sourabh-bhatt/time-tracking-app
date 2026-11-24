@@ -20,9 +20,20 @@ export async function POST(request: Request) {
             prayash: process.env.AUTH_PRAYASH_PASSWORD_HASH,
         };
         const hash = Object.hasOwn(hashes, username) ? hashes[username] : undefined;
-        if (!process.env.AUTH_SESSION_SECRET || process.env.AUTH_SESSION_SECRET.length < 32
-            || !Object.values(hashes).every((value) => /^scrypt:[a-f0-9]{32}:[a-f0-9]{128}$/.test(value || ''))) {
-            return NextResponse.json({ success: false, message: 'Server authentication is not configured' }, { status: 503 });
+        const missingConfig = [
+            !process.env.AUTH_SESSION_SECRET || process.env.AUTH_SESSION_SECRET.length < 32
+                ? 'AUTH_SESSION_SECRET (at least 32 characters)' : null,
+            ...Object.entries(hashes)
+                .filter(([, value]) => !/^scrypt:[a-f0-9]{32}:[a-f0-9]{128}$/.test(value || ''))
+                .map(([user]) => `AUTH_${user.toUpperCase()}_PASSWORD_HASH`),
+        ].filter((value): value is string => value !== null);
+        if (missingConfig.length) {
+            // Only variable names are logged; secret values are never included.
+            console.error(`Login unavailable: production authentication configuration is missing or invalid: ${missingConfig.join(', ')}`);
+            return NextResponse.json({
+                success: false,
+                message: 'Login setup is incomplete on the server. The administrator must configure the production authentication variables in Vercel and redeploy.',
+            }, { status: 503 });
         }
         // Unknown users still perform derivation to avoid a cheap timing oracle.
         const [, salt, expected] = (hash || hashes.admin!).split(':');
