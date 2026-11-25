@@ -1,0 +1,48 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "tracker": {
+      "root": "./",
+      "framework": "nextjs"
+    },
+    "litellm": {
+      "root": "litellm/vercel/",
+      "framework": "fastapi",
+      "entrypoint": "app:app",
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    { "source": "/ui", "destination": { "service": "litellm" } },
+    { "source": "/ui/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/v1", "destination": { "service": "litellm" } },
+    { "source": "/v1/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/api/v1/auth/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/key", "destination": { "service": "litellm" } },
+    { "source": "/key/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/team", "destination": { "service": "litellm" } },
+    { "source": "/team/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/user", "destination": { "service": "litellm" } },
+    { "source": "/user/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/model", "destination": { "service": "litellm" } },
+    { "source": "/model/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/models", "destination": { "service": "litellm" } },
+    { "source": "/spend", "destination": { "service": "litellm" } },
+    { "source": "/spend/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/global", "destination": { "service": "litellm" } },
+    { "source": "/global/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/config", "destination": { "service": "litellm" } },
+    { "source": "/config/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/info", "destination": { "service": "litellm" } },
+    { "source": "/health", "destination": { "service": "litellm" } },
+    { "source": "/health/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/auth/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/credentials/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/router/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/utils/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/guardrails/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/mcp/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/prompts/(.*)", "destination": { "service": "litellm" } },
+    { "source": "/(.*)", "destination": { "service": "tracker" } }
+  ]
+}
