@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { SESSION_COOKIE, verifySessionToken } from './lib/session';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     const path = request.nextUrl.pathname;
     const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
     // APIs and server actions also enforce authorization at the data boundary.
