@@ -12,6 +12,8 @@
     }
   },
   "rewrites": [
+    { "source": "/litellm-asset-prefix", "destination": { "service": "litellm" } },
+    { "source": "/litellm-asset-prefix/(.*)", "destination": { "service": "litellm" } },
     { "source": "/ui", "destination": { "service": "litellm" } },
     { "source": "/ui/(.*)", "destination": { "service": "litellm" } },
     { "source": "/v1", "destination": { "service": "litellm" } },
