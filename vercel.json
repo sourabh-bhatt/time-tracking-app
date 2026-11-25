@@ -8,8 +8,7 @@
     "litellm": {
       "root": "litellm/vercel/",
       "framework": "fastapi",
-      "entrypoint": "app:app",
-      "maxDuration": 60
+      "entrypoint": "app:app"
     }
   },
   "rewrites": [
